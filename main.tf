@@ -39,6 +39,15 @@ resource "aws_vpc" "this" {
   )
 }
 
+resource "aws_vpc_ipv4_cidr_block_association" "this" {
+  count = local.create_vpc && length(var.secondary_cidr_blocks) > 0 ? length(var.secondary_cidr_blocks) : 0
+
+  # Do not turn this into `local.vpc_id`
+  vpc_id = aws_vpc.this[0].id
+
+  cidr_block = element(var.secondary_cidr_blocks, count.index)
+}
+
 ################################################################################
 # Subnet
 ################################################################################
@@ -130,6 +139,10 @@ resource "aws_eip" "nat" {
 ################################################################################
 # Nat Gateway
 ################################################################################
+
+locals {
+  nat_gateway_ips = var.reuse_nat_ips ? var.external_nat_ip_ids : try(aws_eip.nat[*].id, [])
+}
 
 resource "aws_nat_gateway" "this" {
   count = local.create_vpc && var.enable_nat_gateway ? local.nat_gateway_count : 0

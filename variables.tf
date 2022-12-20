@@ -184,12 +184,6 @@ variable "private_subnet_tags" {
   default     = {}
 }
 
-variable "create_igw" {
-  description = "Controls if an Internet Gateway is created for public subnets and the related routes that connect them."
-  type        = bool
-  default     = true
-}
-
 variable "igw_tags" {
   description = "Additional tags for the internet gateway"
   type        = map(string)
@@ -198,12 +192,6 @@ variable "igw_tags" {
 
 variable "enable_nat_gateway" {
   description = "Should be true if you want to provision NAT Gateways for each of your private networks"
-  type        = bool
-  default     = false
-}
-
-variable "reuse_nat_ips" {
-  description = "Should be true if you don't want EIPs to be created for your NAT Gateways and will instead pass them in via the 'external_nat_ip_ids' variable"
   type        = bool
   default     = false
 }
@@ -256,4 +244,8 @@ variable "private_route_table_tags" {
   default     = {}
 }
 
-
+variable "secondary_cidr_blocks" {
+  description = "List of secondary CIDR blocks to associate with the VPC to extend the IP Address pool"
+  type        = list(string)
+  default     = []
+}
