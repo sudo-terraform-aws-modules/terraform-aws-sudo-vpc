@@ -7,7 +7,7 @@ variable "create_vpc" {
 variable "name" {
   description = "Name to be used on all the resources as identifier"
   type        = string
-  default     = ""
+  default     = "sudo-vpc"
 }
 
 variable "cidr" {
@@ -64,10 +64,11 @@ variable "instance_tenancy" {
   default     = "default"
 }
 
+# SUDO: Should be set to true, since most services require this
 variable "enable_dns_hostnames" {
   description = "Should be true to enable DNS hostnames in the VPC"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_dns_support" {
@@ -217,7 +218,7 @@ variable "external_nat_ip_ids" {
 variable "single_nat_gateway" {
   description = "Should be true if you want to provision a single shared NAT Gateway across all of your private networks"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "nat_gateway_tags" {
@@ -225,6 +226,13 @@ variable "nat_gateway_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "nat_gateway_destination_cidr_block" {
+  description = "Used to pass a custom destination route for private NAT Gateway. If not specified, the default 0.0.0.0/0 is used as a destination route."
+  type        = string
+  default     = "0.0.0.0/0"
+}
+
 
 variable "public_route_table_tags" {
   description = "Additional tags for the public route tables"
@@ -248,4 +256,36 @@ variable "secondary_cidr_blocks" {
   description = "List of secondary CIDR blocks to associate with the VPC to extend the IP Address pool"
   type        = list(string)
   default     = []
+}
+
+# SUDO: Default is set to true
+variable "manage_default_security_group" {
+  description = "Should be true to adopt and manage default security group"
+  type        = bool
+  default     = true
+}
+
+
+variable "default_security_group_name" {
+  description = "Name to be used on the default security group"
+  type        = string
+  default     = null
+}
+
+variable "default_security_group_ingress" {
+  description = "List of maps of ingress rules to set on the default security group"
+  type        = list(map(string))
+  default     = []
+}
+
+variable "default_security_group_egress" {
+  description = "List of maps of egress rules to set on the default security group"
+  type        = list(map(string))
+  default     = []
+}
+
+variable "default_security_group_tags" {
+  description = "Additional tags for the default security group"
+  type        = map(string)
+  default     = {}
 }
