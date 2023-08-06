@@ -293,7 +293,7 @@ variable "default_security_group_tags" {
 variable "enable_dhcp_options" {
   description = "Should be true if you want to specify a DHCP options set with a custom domain name, DNS servers, NTP servers, netbios servers, and/or netbios server type"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "dhcp_options_domain_name" {
@@ -330,4 +330,150 @@ variable "dhcp_options_tags" {
   description = "Additional tags for the DHCP option set (requires enable_dhcp_options set to true)"
   type        = map(string)
   default     = {}
+}
+
+################################################################################
+# Flow Log
+################################################################################
+
+variable "enable_flow_log" {
+  description = "Whether or not to enable VPC Flow Logs"
+  type        = bool
+  default     = true
+}
+
+variable "vpc_flow_log_permissions_boundary" {
+  description = "The ARN of the Permissions Boundary for the VPC Flow Log IAM Role"
+  type        = string
+  default     = null
+}
+
+variable "flow_log_max_aggregation_interval" {
+  description = "The maximum interval of time during which a flow of packets is captured and aggregated into a flow log record. Valid Values: `60` seconds or `600` seconds"
+  type        = number
+  default     = 600
+}
+
+variable "flow_log_traffic_type" {
+  description = "The type of traffic to capture. Valid values: ACCEPT, REJECT, ALL"
+  type        = string
+  default     = "ALL"
+}
+
+variable "flow_log_destination_type" {
+  description = "Type of flow log destination. Can be s3 or cloud-watch-logs"
+  type        = string
+  default     = "s3"
+}
+
+variable "flow_log_log_format" {
+  description = "The fields to include in the flow log record, in the order in which they should appear"
+  type        = string
+  default     = null
+}
+
+variable "flow_log_file_format" {
+  description = "(Optional) The format for the flow log. Valid values: `plain-text`, `parquet`"
+  type        = string
+  default     = null
+}
+
+variable "flow_log_hive_compatible_partitions" {
+  description = "(Optional) Indicates whether to use Hive-compatible prefixes for flow logs stored in Amazon S3"
+  type        = bool
+  default     = false
+}
+
+variable "flow_log_per_hour_partition" {
+  description = "(Optional) Indicates whether to partition the flow log per hour. This reduces the cost and response time for queries"
+  type        = bool
+  default     = false
+}
+
+variable "vpc_flow_log_tags" {
+  description = "Additional tags for the VPC Flow Logs"
+  type        = map(string)
+  default     = {}
+}
+
+################################################################################
+# Flow Log CloudWatch
+################################################################################
+
+variable "create_flow_log_cloudwatch_log_group" {
+  description = "Whether to create CloudWatch log group for VPC Flow Logs"
+  type        = bool
+  default     = false
+}
+
+variable "create_flow_log_cloudwatch_iam_role" {
+  description = "Whether to create IAM role for VPC Flow Logs"
+  type        = bool
+  default     = false
+}
+
+variable "flow_log_cloudwatch_iam_role_arn" {
+  description = "The ARN for the IAM role that's used to post flow logs to a CloudWatch Logs log group. When flow_log_destination_arn is set to ARN of Cloudwatch Logs, this argument needs to be provided"
+  type        = string
+  default     = ""
+}
+
+variable "flow_log_cloudwatch_log_group_name_prefix" {
+  description = "Specifies the name prefix of CloudWatch Log Group for VPC flow logs"
+  type        = string
+  default     = "/aws/vpc-flow-log/"
+}
+
+variable "flow_log_cloudwatch_log_group_name_suffix" {
+  description = "Specifies the name suffix of CloudWatch Log Group for VPC flow logs"
+  type        = string
+  default     = ""
+}
+
+variable "flow_log_cloudwatch_log_group_retention_in_days" {
+  description = "Specifies the number of days you want to retain log events in the specified log group for VPC flow logs"
+  type        = number
+  default     = null
+}
+
+variable "flow_log_cloudwatch_log_group_kms_key_id" {
+  description = "The ARN of the KMS Key to use when encrypting log data for VPC flow logs"
+  type        = string
+  default     = null
+}
+
+variable "type" {
+  description = "(Optional) Type of Analyzer. Valid values are `ACCOUNT` or `ORGANIZATION`. Defaults to `ACCOUNT`."
+  type        = string
+  default     = "ACCOUNT"
+  nullable    = false
+
+  validation {
+    condition     = contains(["ACCOUNT", "ORGANIZATION"], var.type)
+    error_message = "The `type` should be one of `ACCOUNT`, `ORGANIZATION`."
+  }
+}
+
+variable "archive_rules" {
+  description = <<EOF
+  (Optional) A list of archive rules for the AccessAnalyzer Analyzer. Each item of `archive_rules` block as defined below.
+    (Required) `name` - The name of archive rule.
+    (Required) `filters` - A list of filter criterias for the archive rule. Each item of `filters` block as defined below.
+      (Required) `criteria` - The filter criteria.
+      (Optional) `contains` - Contains comparator.
+      (Optional) `exists` - Exists comparator (Boolean).
+      (Optional) `eq` - Equal comparator.
+      (Optional) `neq` - Not Equal comparator.
+  EOF
+  type        = any
+  default     = []
+  nullable    = false
+
+  validation {
+    condition = alltrue([
+      for rule in var.archive_rules :
+      length(rule.filters) > 0
+    ])
+    error_message = "`filters` of each item of `archive_rules` must have one or more filters."
+  }
 }
