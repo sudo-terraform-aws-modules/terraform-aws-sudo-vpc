@@ -25,7 +25,17 @@ locals {
   # Create private subnets without NAT in default mode.
   public_subnets = local.max_subnet_length > 0 && var.cidr != "0.0.0.0/0" ? var .public_subnets : local.subnets[0]
   private_subnets = local.max_subnet_length > 0 && var.cidr != "0.0.0.0/0" ? var .private_subnets : local.subnets[1]
+
+  enable_flow_log = local.create_vpc && var.enable_flow_log
+
+  create_flow_log_cloudwatch_iam_role  = local.enable_flow_log && var.flow_log_destination_type != "s3" && var.create_flow_log_cloudwatch_iam_role
+  create_flow_log_cloudwatch_log_group = local.enable_flow_log && var.flow_log_destination_type != "s3" && var.create_flow_log_cloudwatch_log_group
+
+  flow_log_destination_arn                  = local.create_flow_log_cloudwatch_log_group ? try(aws_cloudwatch_log_group.flow_log[0].arn, null) : var.flow_log_destination_arn
+  flow_log_iam_role_arn                     = var.flow_log_destination_type != "s3" && local.create_flow_log_cloudwatch_iam_role ? try(aws_iam_role.vpc_flow_log_cloudwatch[0].arn, null) : var.flow_log_cloudwatch_iam_role_arn
+  flow_log_cloudwatch_log_group_name_suffix = var.flow_log_cloudwatch_log_group_name_suffix == "" ? local.vpc_id : var.flow_log_cloudwatch_log_group_name_suffix
 }
+
 data "aws_availability_zones" "azs" {
   filter {
     name   = "opt-in-status"
@@ -330,4 +340,91 @@ resource "aws_route_table_association" "public" {
 
   subnet_id      = element(aws_subnet.public[*].id, count.index)
   route_table_id = aws_route_table.public[0].id
+}
+
+################################################################################
+# Customer Gateways
+################################################################################
+
+resource "aws_customer_gateway" "this" {
+  for_each = var.customer_gateways
+
+  bgp_asn     = each.value["bgp_asn"]
+  ip_address  = each.value["ip_address"]
+  device_name = lookup(each.value, "device_name", null)
+  type        = "ipsec.1"
+
+  tags = merge(
+    { Name = "${var.name}-${each.key}" },
+    var.tags,
+    var.customer_gateway_tags,
+  )
+}
+
+################################################################################
+# VPN Gateway
+################################################################################
+
+resource "aws_vpn_gateway" "this" {
+  count = local.create_vpc && var.enable_vpn_gateway ? 1 : 0
+
+  vpc_id            = local.vpc_id
+  amazon_side_asn   = var.amazon_side_asn
+  availability_zone = var.vpn_gateway_az
+
+  tags = merge(
+    { "Name" = var.name },
+    var.tags,
+    var.vpn_gateway_tags,
+  )
+}
+
+resource "aws_vpn_gateway_attachment" "this" {
+  count = var.vpn_gateway_id != "" ? 1 : 0
+
+  vpc_id         = local.vpc_id
+  vpn_gateway_id = var.vpn_gateway_id
+}
+
+resource "aws_vpn_gateway_route_propagation" "public" {
+  count = local.create_vpc && var.propagate_public_route_tables_vgw && (var.enable_vpn_gateway || var.vpn_gateway_id != "") ? 1 : 0
+
+  route_table_id = element(aws_route_table.public[*].id, count.index)
+  vpn_gateway_id = element(
+    concat(
+      aws_vpn_gateway.this[*].id,
+      aws_vpn_gateway_attachment.this[*].vpn_gateway_id,
+    ),
+    count.index,
+  )
+}
+
+resource "aws_vpn_gateway_route_propagation" "private" {
+  count = local.create_vpc && var.propagate_private_route_tables_vgw && (var.enable_vpn_gateway || var.vpn_gateway_id != "") ? length(var.private_subnets) : 0
+
+  route_table_id = element(aws_route_table.private[*].id, count.index)
+  vpn_gateway_id = element(
+    concat(
+      aws_vpn_gateway.this[*].id,
+      aws_vpn_gateway_attachment.this[*].vpn_gateway_id,
+    ),
+    count.index,
+  )
+}
+
+################################################################################
+# Defaults
+################################################################################
+
+resource "aws_default_vpc" "this" {
+  count = var.manage_default_vpc ? 1 : 0
+
+  enable_dns_support   = var.default_vpc_enable_dns_support
+  enable_dns_hostnames = var.default_vpc_enable_dns_hostnames
+
+  tags = merge(
+    { "Name" = coalesce(var.default_vpc_name, "default") },
+    var.tags,
+    var.default_vpc_tags,
+  )
 }

@@ -289,3 +289,216 @@ variable "default_security_group_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_flow_log" {
+  type = bool
+  description = "(optional) Enable Flow lgos. Default: true"
+  default = true
+}
+
+variable "create_flow_log_cloudwatch_log_group" {
+  type = bool
+  description = "(optional) Create Flow Log CloudWatch Log Group. Default: true"
+  default = true
+}
+
+variable "create_flow_log_cloudwatch_iam_role" {
+  type = bool
+  description = "(optional) Create Flow Log CloudWatch IAM Role. Default: true"
+  default = true
+}
+
+# variable "create_flow_log_cloudwatch_iam_role" {
+#   type = number
+#   description = "(optional) Flowlog max aggregation interval. Default: 60"
+#   default = 60
+# }
+
+variable "vpc_flow_log_tags" {
+  description = "(optional) Additional tags for the VPC Flow Logs"
+  type        = map(string)
+  default     = {}
+}
+
+variable "vpc_flow_log_permissions_boundary" {
+  description = "{90tional) The ARN of the Permissions Boundary for the VPC Flow Log IAM Role"
+  type        = string
+  default     = null
+}
+
+# TODO: Apply SUDO best practices
+variable "flow_log_traffic_type" {
+  description = "The type of traffic to capture. Valid values: ACCEPT, REJECT, ALL. Default: REJECT"
+  type        = string
+  default     = "REJECT"
+}
+
+variable "flow_log_destination_type" {
+  description = "Type of flow log destination. Can be s3 or cloud-watch-logs. Default: cloud-watch-logs"
+  type        = string
+  default     = "cloud-watch-logs"
+}
+
+variable "flow_log_log_format" {
+  description = "The fields to include in the flow log record, in the order in which they should appear."
+  type        = string
+  default     = null
+}
+
+variable "flow_log_destination_arn" {
+  description = "(optional) The ARN of the CloudWatch log group or S3 bucket where VPC Flow Logs will be pushed. If this ARN is a S3 bucket the appropriate permissions need to be set on that bucket's policy. When create_flow_log_cloudwatch_log_group is set to false this argument must be provided."
+  type        = string
+  default     = ""
+}
+
+variable "flow_log_cloudwatch_iam_role_arn" {
+  description = "(optional) The ARN for the IAM role that's used to post flow logs to a CloudWatch Logs log group. When flow_log_destination_arn is set to ARN of Cloudwatch Logs, this argument needs to be provided."
+  type        = string
+  default     = ""
+}
+
+variable "flow_log_cloudwatch_log_group_name_prefix" {
+  description = "(optional) Specifies the name prefix of CloudWatch Log Group for VPC flow logs."
+  type        = string
+  default     = "/aws/vpc-flow-log/"
+}
+
+variable "flow_log_cloudwatch_log_group_name_suffix" {
+  description = "(optional) Specifies the name suffix of CloudWatch Log Group for VPC flow logs."
+  type        = string
+  default     = ""
+}
+
+variable "flow_log_cloudwatch_log_group_retention_in_days" {
+  description = "(optional) Specifies the number of days you want to retain log events in the specified log group for VPC flow logs."
+  type        = number
+  default     = null
+}
+
+variable "flow_log_cloudwatch_log_group_kms_key_id" {
+  description = "(optional) The ARN of the KMS Key to use when encrypting log data for VPC flow logs."
+  type        = string
+  default     = null
+}
+
+variable "flow_log_max_aggregation_interval" {
+  description = "(optional) The maximum interval of time during which a flow of packets is captured and aggregated into a flow log record. Valid Values: `60` seconds or `600` seconds."
+  type        = number
+  default     = 600
+}
+
+variable "enable_vpn_gateway" {
+  description = "(optional) Set it to true if you want to create new vpn gateway. Default: false"
+  type        = bool
+  default     = false
+}
+
+variable "vpn_gateway_id" {
+  description = "(optional) Provide the ID of existing VPN gateway to attach to VPC"
+  type        = string
+  default     = ""
+}
+
+variable "amazon_side_asn" {
+  description = "(optional) Provide ASN for the gateway. Default: 64512"
+  type        = string
+  default     = "64512"
+}
+
+variable "vpn_gateway_tags" {
+  description = "(optional) Additional tags for the VPN gateway"
+  type        = map(string)
+  default     = {}
+}
+
+variable "customer_gateways" {
+  description = "(optional) Maps of Customer Gateways"
+  type        = map(map(any))
+  default     = {}
+}
+
+variable "customer_gateway_tags" {
+  description = "(optional) Customer Gateway additional tags"
+  type        = map(string)
+  default     = {}
+}
+
+variable "vpn_gateway_az" {
+  description = "VPN Gateway Availability Zone"
+  type        = string
+  default     = null
+}
+
+variable "propagate_intra_route_tables_vgw" {
+  description = "(optional) Set to true to enable route table propogation. Default: false"
+  type        = bool
+  default     = false
+}
+
+variable "propagate_private_route_tables_vgw" {
+  description = "(optional) Set to true to enable route table propogation. Default: false"
+  type        = bool
+  default     = false
+}
+
+variable "propagate_public_route_tables_vgw" {
+  description = "(optional) Set to true to enable route table propogation. Default: false"
+  type        = bool
+  default     = false
+}
+
+
+variable "manage_default_vpc" {
+  description = "(optional) Manage Default VPC. Default: false"
+  type        = bool
+  default     = false
+}
+
+variable "default_vpc_name" {
+  description = "(optional) Default VPC Name. Default: null"
+  type        = string
+  default     = null
+}
+
+variable "default_vpc_enable_dns_support" {
+  description = "(optional) Set to true to enable Default VPC DNS Support. Default: true"
+  type        = bool
+  default     = true
+}
+
+variable "default_vpc_enable_dns_hostnames" {
+  description = "(optional) Set to true to enable Default VPC DNS Hostname. Default: true"
+  type        = bool
+  default     = false
+}
+
+# tflint-ignore: terraform_unused_declarations
+variable "default_vpc_enable_classiclink" {
+  description = "Backward compatibility only, not used."
+  type        = bool
+  default     = false
+}
+
+variable "default_vpc_tags" {
+  description = "(optional) Default VPC tags. Default: {}"
+  type        = map(string)
+  default     = {}
+}
+
+variable "manage_default_network_acl" {
+  description = "(optional) Default network ACL management. Default: false"
+  type        = bool
+  default     = false
+}
+
+variable "default_network_acl_name" {
+  description = "(optional) Default network ACL name. Default: null"
+  type        = string
+  default     = null
+}
+
+variable "default_network_acl_tags" {
+  description = "(optional) Default Network ACL tags. Default: {}"
+  type        = map(string)
+  default     = {}
+}
