@@ -7,24 +7,22 @@ locals {
     length(local.public_subnets),
     length(local.private_subnets),
   )
-  nat_gateway_count = local.single_nat_gateway ? 1 : var.one_nat_gateway_per_az ? length(local.public_subnets) : local.max_subnet_length
+  nat_gateway_count  = local.single_nat_gateway ? 1 : var.one_nat_gateway_per_az ? length(local.public_subnets) : local.max_subnet_length
   single_nat_gateway = var.one_nat_gateway_per_az ? false : var.single_nat_gateway
   # Use `local.vpc_id` to give a hint to Terraform that subnets should be deleted before secondary CIDR blocks can be free!
-  vpc_id = try(aws_vpc_ipv4_cidr_block_association.this[0].vpc_id, aws_vpc.this[0].id, "")
-  name = var.name == "sudo-vpc" ? "sudo-vpc-${random_string.random.result}" : var.name
+  vpc_id                      = try(aws_vpc_ipv4_cidr_block_association.this[0].vpc_id, aws_vpc.this[0].id, "")
+  name                        = var.name == "sudo-vpc" ? "sudo-vpc-${random_string.random.result}" : var.name
   default_security_group_name = coalesce(var.default_security_group_name, "${local.name}-default-security-group")
-  cidr = var.cidr == "0.0.0.0/0" ? "172.31.0.0/16" : var.cidr
-  create_vpc = var.create_vpc
-  cidr_prefix_match = regexall("/([0-9]{2})", local.cidr)
-  cidr_prefix = length(local.cidr_prefix_match) > 0 ? tonumber(local.cidr_prefix_match[0][0]) : 16
-  validate_cidr_prefix = local.max_subnet_length == 0 && var.cidr != "0.0.0.0/0" && local.cidr_prefix > 20 ? tobool("Please provide subnet addressing for VPC greater than /20 prefix") : true
+  cidr                        = var.cidr == "0.0.0.0/0" ? "172.31.0.0/16" : var.cidr
+  create_vpc                  = var.create_vpc
 
-  azs = length(var.azs) > 0 ? var.azs : slice(data.aws_availability_zones.azs.zone_ids,0,length(local.public_subnets))
+
+  azs     = length(var.azs) > 0 ? var.azs : slice(data.aws_availability_zones.azs.zone_ids, 0, length(local.public_subnets))
   subnets = [for cidr_block in cidrsubnets(local.cidr, 4, 4, 4, 4) : cidrsubnets(cidr_block, 4, 4, 4)]
 
   # Create private subnets without NAT in default mode.
-  public_subnets = local.max_subnet_length > 0 && var.cidr != "0.0.0.0/0" ? var .public_subnets : local.subnets[0]
-  private_subnets = local.max_subnet_length > 0 && var.cidr != "0.0.0.0/0" ? var .private_subnets : local.subnets[1]
+  public_subnets  = local.max_subnet_length > 0 && var.cidr != "0.0.0.0/0" ? var.public_subnets : local.subnets[0]
+  private_subnets = local.max_subnet_length > 0 && var.cidr != "0.0.0.0/0" ? var.private_subnets : local.subnets[1]
 
   enable_flow_log = local.create_vpc && var.enable_flow_log
 
@@ -65,9 +63,9 @@ resource "aws_vpc" "this" {
   ipv6_ipam_pool_id                = var.ipv6_ipam_pool_id
   ipv6_netmask_length              = var.ipv6_netmask_length
 
-  instance_tenancy               = var.instance_tenancy
-  enable_dns_hostnames           = var.enable_dns_hostnames
-  enable_dns_support             = var.enable_dns_support
+  instance_tenancy     = var.instance_tenancy
+  enable_dns_hostnames = var.enable_dns_hostnames
+  enable_dns_support   = var.enable_dns_support
 
   tags = merge(
     { "Name" = var.name },
@@ -83,6 +81,33 @@ resource "aws_vpc_ipv4_cidr_block_association" "this" {
   vpc_id = aws_vpc.this[0].id
 
   cidr_block = element(var.secondary_cidr_blocks, count.index)
+}
+
+################################################################################
+# DHCP Options Set
+################################################################################
+
+resource "aws_vpc_dhcp_options" "this" {
+  count = local.create_vpc && var.enable_dhcp_options ? 1 : 0
+
+  domain_name          = var.dhcp_options_domain_name
+  domain_name_servers  = var.dhcp_options_domain_name_servers
+  ntp_servers          = var.dhcp_options_ntp_servers
+  netbios_name_servers = var.dhcp_options_netbios_name_servers
+  netbios_node_type    = var.dhcp_options_netbios_node_type
+
+  tags = merge(
+    { "Name" = var.name },
+    var.tags,
+    var.dhcp_options_tags,
+  )
+}
+
+resource "aws_vpc_dhcp_options_association" "this" {
+  count = local.create_vpc && var.enable_dhcp_options ? 1 : 0
+
+  vpc_id          = local.vpc_id
+  dhcp_options_id = aws_vpc_dhcp_options.this[0].id
 }
 
 ################################################################################
@@ -426,5 +451,32 @@ resource "aws_default_vpc" "this" {
     { "Name" = coalesce(var.default_vpc_name, "default") },
     var.tags,
     var.default_vpc_tags,
+  )
+}
+
+
+
+
+locals {
+  metadata = {
+    package = "terraform-aws-security"
+    version = trimspace(file("${path.module}/versions.tf"))
+    module  = basename(path.module)
+    name    = var.name
+  }
+}
+
+################################################################################
+# VPC Network Access Analyzer
+################################################################################
+
+resource "aws_accessanalyzer_analyzer" "this" {
+  analyzer_name = "${var.name}-network-analyzer"
+
+  tags = merge(
+    {
+      "Name" = local.metadata.name
+    },
+    var.tags,
   )
 }
