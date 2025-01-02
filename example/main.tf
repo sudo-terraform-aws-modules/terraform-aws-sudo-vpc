@@ -1,4 +1,4 @@
 module "vpc" {
   source = "../"
-  
+
 }

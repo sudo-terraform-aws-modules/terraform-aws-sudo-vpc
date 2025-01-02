@@ -290,6 +290,134 @@ variable "default_security_group_tags" {
   default     = {}
 }
 
+
+
+
+
+variable "flow_log_destination_arn" {
+  description = "(optional) The ARN of the CloudWatch log group or S3 bucket where VPC Flow Logs will be pushed. If this ARN is a S3 bucket the appropriate permissions need to be set on that bucket's policy. When create_flow_log_cloudwatch_log_group is set to false this argument must be provided."
+  type        = string
+  default     = ""
+}
+
+variable "enable_vpn_gateway" {
+  description = "(optional) Set it to true if you want to create new vpn gateway. Default: false"
+  type        = bool
+  default     = false
+}
+
+variable "vpn_gateway_id" {
+  description = "(optional) Provide the ID of existing VPN gateway to attach to VPC"
+  type        = string
+  default     = ""
+}
+
+variable "amazon_side_asn" {
+  description = "(optional) Provide ASN for the gateway. Default: 64512"
+  type        = string
+  default     = "64512"
+}
+
+variable "vpn_gateway_tags" {
+  description = "(optional) Additional tags for the VPN gateway"
+  type        = map(string)
+  default     = {}
+}
+
+variable "customer_gateways" {
+  description = "(optional) Maps of Customer Gateways"
+  type        = map(map(any))
+  default     = {}
+}
+
+variable "customer_gateway_tags" {
+  description = "(optional) Customer Gateway additional tags"
+  type        = map(string)
+  default     = {}
+}
+
+variable "vpn_gateway_az" {
+  description = "VPN Gateway Availability Zone"
+  type        = string
+  default     = null
+}
+
+# variable "propagate_intra_route_tables_vgw" {
+#   description = "(optional) Set to true to enable route table propogation. Default: false"
+#   type        = bool
+#   default     = false
+# }
+
+variable "propagate_private_route_tables_vgw" {
+  description = "(optional) Set to true to enable route table propogation. Default: false"
+  type        = bool
+  default     = false
+}
+
+variable "propagate_public_route_tables_vgw" {
+  description = "(optional) Set to true to enable route table propogation. Default: false"
+  type        = bool
+  default     = false
+}
+
+
+variable "manage_default_vpc" {
+  description = "(optional) Manage Default VPC. Default: false"
+  type        = bool
+  default     = false
+}
+
+variable "default_vpc_name" {
+  description = "(optional) Default VPC Name. Default: null"
+  type        = string
+  default     = null
+}
+
+variable "default_vpc_enable_dns_support" {
+  description = "(optional) Set to true to enable Default VPC DNS Support. Default: true"
+  type        = bool
+  default     = true
+}
+
+variable "default_vpc_enable_dns_hostnames" {
+  description = "(optional) Set to true to enable Default VPC DNS Hostname. Default: true"
+  type        = bool
+  default     = false
+}
+
+# tflint-ignore: terraform_unused_declarations
+variable "default_vpc_enable_classiclink" {
+  description = "Backward compatibility only, not used."
+  type        = bool
+  default     = false
+}
+
+variable "default_vpc_tags" {
+  description = "(optional) Default VPC tags. Default: {}"
+  type        = map(string)
+  default     = {}
+}
+
+# TODO: Implementation missing
+# variable "manage_default_network_acl" {
+#   description = "(optional) Default network ACL management. Default: false"
+#   type        = bool
+#   default     = false
+# }
+
+# #TODO: Implementation missing
+# variable "default_network_acl_name" {
+#   description = "(optional) Default network ACL name. Default: null"
+#   type        = string
+#   default     = null
+# }
+
+# variable "default_network_acl_tags" {
+#   description = "(optional) Default Network ACL tags. Default: {}"
+#   type        = map(string)
+#   default     = {}
+# }
+
 variable "enable_dhcp_options" {
   description = "Should be true if you want to specify a DHCP options set with a custom domain name, DNS servers, NTP servers, netbios servers, and/or netbios server type"
   type        = bool
@@ -354,12 +482,12 @@ variable "flow_log_max_aggregation_interval" {
   default     = 600
 }
 
+# TODO: Apply SUDO best practices
 variable "flow_log_traffic_type" {
-  description = "The type of traffic to capture. Valid values: ACCEPT, REJECT, ALL"
+  description = "The type of traffic to capture. Valid values: ACCEPT, REJECT, ALL. Default: REJECT"
   type        = string
-  default     = "ALL"
+  default     = "REJECT"
 }
-
 variable "flow_log_destination_type" {
   description = "Type of flow log destination. Can be s3 or cloud-watch-logs"
   type        = string
@@ -442,38 +570,39 @@ variable "flow_log_cloudwatch_log_group_kms_key_id" {
   default     = null
 }
 
-variable "type" {
-  description = "(Optional) Type of Analyzer. Valid values are `ACCOUNT` or `ORGANIZATION`. Defaults to `ACCOUNT`."
-  type        = string
-  default     = "ACCOUNT"
-  nullable    = false
+#TODO: Implementation missing
+# variable "type" {
+#   description = "(Optional) Type of Analyzer. Valid values are `ACCOUNT` or `ORGANIZATION`. Defaults to `ACCOUNT`."
+#   type        = string
+#   default     = "ACCOUNT"
+#   nullable    = false
 
-  validation {
-    condition     = contains(["ACCOUNT", "ORGANIZATION"], var.type)
-    error_message = "The `type` should be one of `ACCOUNT`, `ORGANIZATION`."
-  }
-}
+#   validation {
+#     condition     = contains(["ACCOUNT", "ORGANIZATION"], var.type)
+#     error_message = "The `type` should be one of `ACCOUNT`, `ORGANIZATION`."
+#   }
+# }
 
-variable "archive_rules" {
-  description = <<EOF
-  (Optional) A list of archive rules for the AccessAnalyzer Analyzer. Each item of `archive_rules` block as defined below.
-    (Required) `name` - The name of archive rule.
-    (Required) `filters` - A list of filter criterias for the archive rule. Each item of `filters` block as defined below.
-      (Required) `criteria` - The filter criteria.
-      (Optional) `contains` - Contains comparator.
-      (Optional) `exists` - Exists comparator (Boolean).
-      (Optional) `eq` - Equal comparator.
-      (Optional) `neq` - Not Equal comparator.
-  EOF
-  type        = any
-  default     = []
-  nullable    = false
+# variable "archive_rules" {
+#   description = <<EOF
+#   (Optional) A list of archive rules for the AccessAnalyzer Analyzer. Each item of `archive_rules` block as defined below.
+#     (Required) `name` - The name of archive rule.
+#     (Required) `filters` - A list of filter criterias for the archive rule. Each item of `filters` block as defined below.
+#       (Required) `criteria` - The filter criteria.
+#       (Optional) `contains` - Contains comparator.
+#       (Optional) `exists` - Exists comparator (Boolean).
+#       (Optional) `eq` - Equal comparator.
+#       (Optional) `neq` - Not Equal comparator.
+#   EOF
+#   type        = any
+#   default     = []
+#   nullable    = false
 
-  validation {
-    condition = alltrue([
-      for rule in var.archive_rules :
-      length(rule.filters) > 0
-    ])
-    error_message = "`filters` of each item of `archive_rules` must have one or more filters."
-  }
-}
+#   validation {
+#     condition = alltrue([
+#       for rule in var.archive_rules :
+#       length(rule.filters) > 0
+#     ])
+#     error_message = "`filters` of each item of `archive_rules` must have one or more filters."
+#   }
+# }
