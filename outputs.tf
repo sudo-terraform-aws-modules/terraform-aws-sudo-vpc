@@ -33,7 +33,10 @@ output "private_subnets" {
   description = "Private Subnet ID List"
   value       = aws_subnet.private[*].id
 }
-
+output "database_subnets" {
+  description = "Database Subnet ID List"
+  value       = aws_subnet.database[*].id
+}
 output "private_subnet_arns" {
   description = "Private Subnet ARN List"
   value       = aws_subnet.private[*].arn
