@@ -62,6 +62,10 @@ variable "instance_tenancy" {
   description = "A tenancy option for instances launched into the VPC"
   type        = string
   default     = "default"
+  validation {
+    condition     = contains(["default", "dedicated", "host"], var.instance_tenancy)
+    error_message = "Valid values for instance_tenancy are: default, dedicated, host."
+  }
 }
 
 # SUDO: Should be set to true, since most services require this
@@ -292,7 +296,7 @@ variable "default_security_group_tags" {
 
 variable "enable_flow_log" {
   type        = bool
-  description = "(optional) Enable Flow lgos. Default: true"
+  description = "(optional) Enable Flow Logs. Default: true"
   default     = true
 }
 
@@ -308,12 +312,6 @@ variable "create_flow_log_cloudwatch_iam_role" {
   default     = true
 }
 
-# variable "create_flow_log_cloudwatch_iam_role" {
-#   type = number
-#   description = "(optional) Flowlog max aggregation interval. Default: 60"
-#   default = 60
-# }
-
 variable "vpc_flow_log_tags" {
   description = "(optional) Additional tags for the VPC Flow Logs"
   type        = map(string)
@@ -321,22 +319,29 @@ variable "vpc_flow_log_tags" {
 }
 
 variable "vpc_flow_log_permissions_boundary" {
-  description = "{90tional) The ARN of the Permissions Boundary for the VPC Flow Log IAM Role"
+  description = "(Optional) The ARN of the Permissions Boundary for the VPC Flow Log IAM Role"
   type        = string
   default     = null
 }
 
-# TODO: Apply SUDO best practices
 variable "flow_log_traffic_type" {
   description = "The type of traffic to capture. Valid values: ACCEPT, REJECT, ALL. Default: REJECT"
   type        = string
   default     = "REJECT"
+  validation {
+    condition     = contains(["ACCEPT", "REJECT", "ALL"], var.flow_log_traffic_type)
+    error_message = "Valid values for flow_log_traffic_type are: ACCEPT, REJECT, ALL."
+  }
 }
 
 variable "flow_log_destination_type" {
   description = "Type of flow log destination. Can be s3 or cloud-watch-logs. Default: cloud-watch-logs"
   type        = string
   default     = "cloud-watch-logs"
+  validation {
+    condition     = contains(["s3", "cloud-watch-logs"], var.flow_log_destination_type)
+    error_message = "Valid values for flow_log_destination_type are: s3, cloud-watch-logs."
+  }
 }
 
 variable "flow_log_log_format" {
@@ -372,7 +377,7 @@ variable "flow_log_cloudwatch_log_group_name_suffix" {
 variable "flow_log_cloudwatch_log_group_retention_in_days" {
   description = "(optional) Specifies the number of days you want to retain log events in the specified log group for VPC flow logs."
   type        = number
-  default     = null
+  default     = 90
 }
 
 variable "flow_log_cloudwatch_log_group_kms_key_id" {
@@ -385,6 +390,32 @@ variable "flow_log_max_aggregation_interval" {
   description = "(optional) The maximum interval of time during which a flow of packets is captured and aggregated into a flow log record. Valid Values: `60` seconds or `600` seconds."
   type        = number
   default     = 600
+  validation {
+    condition     = contains([60, 600], var.flow_log_max_aggregation_interval)
+    error_message = "Valid values for flow_log_max_aggregation_interval are: 60 or 600."
+  }
+}
+
+variable "flow_log_file_format" {
+  description = "(optional) The format for the flow log. Valid values: plain-text, parquet. Default: plain-text"
+  type        = string
+  default     = "plain-text"
+  validation {
+    condition     = contains(["plain-text", "parquet"], var.flow_log_file_format)
+    error_message = "Valid values for flow_log_file_format are: plain-text, parquet."
+  }
+}
+
+variable "flow_log_hive_compatible_partitions" {
+  description = "(optional) Indicates whether to use Hive-compatible prefixes for flow logs stored in Amazon S3. Default: false"
+  type        = bool
+  default     = false
+}
+
+variable "flow_log_per_hour_partition" {
+  description = "(optional) Indicates whether to partition the flow log per hour. This reduces the cost and response time for queries. Default: false"
+  type        = bool
+  default     = false
 }
 
 variable "enable_vpn_gateway" {
