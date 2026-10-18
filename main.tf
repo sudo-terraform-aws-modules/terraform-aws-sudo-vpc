@@ -15,10 +15,6 @@ locals {
   default_security_group_name = coalesce(var.default_security_group_name, "${local.name}-default-security-group")
   cidr                        = var.cidr == "0.0.0.0/0" ? "172.31.0.0/16" : var.cidr
   create_vpc                  = var.create_vpc
-  # tflint-ignore: terraform_unused_declarations # Removed in #12 PR 3.
-  cidr_prefix_match = regexall("/([0-9]{2})", local.cidr)
-  #cidr_prefix                 = length(local.cidr_prefix_match) > 0 ? tonumber(local.cidr_prefix_match[0][0]) : 16
-  #validate_cidr_prefix        = local.max_subnet_length == 0 && var.cidr != "0.0.0.0/0" && local.cidr_prefix > 20 ? tobool("Please provide subnet addressing for VPC greater than /20 prefix") : true
 
   azs     = length(var.azs) > 0 ? var.azs : slice(data.aws_availability_zones.azs.zone_ids, 0, length(local.public_subnets))
   subnets = [for cidr_block in cidrsubnets(local.cidr, 4, 4, 4, 4) : cidrsubnets(cidr_block, 4, 4, 4)]

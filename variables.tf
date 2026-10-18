@@ -460,13 +460,6 @@ variable "vpn_gateway_az" {
   default     = null
 }
 
-# tflint-ignore: terraform_unused_declarations # Removed in #12 PR 3.
-variable "propagate_intra_route_tables_vgw" {
-  description = "(optional) Set to true to enable route table propagation. Default: false"
-  type        = bool
-  default     = false
-}
-
 variable "propagate_private_route_tables_vgw" {
   description = "(optional) Set to true to enable route table propagation. Default: false"
   type        = bool
@@ -500,13 +493,6 @@ variable "default_vpc_enable_dns_support" {
 
 variable "default_vpc_enable_dns_hostnames" {
   description = "(optional) Set to true to enable Default VPC DNS Hostname. Default: false"
-  type        = bool
-  default     = false
-}
-
-# tflint-ignore: terraform_unused_declarations
-variable "default_vpc_enable_classiclink" {
-  description = "Backward compatibility only, not used."
   type        = bool
   default     = false
 }
