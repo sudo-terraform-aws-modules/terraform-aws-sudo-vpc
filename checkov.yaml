@@ -1,0 +1,23 @@
+compact: true
+quiet: true
+framework:
+  - terraform
+
+# Examples are demonstration configs - not production hardened.
+# Strict security checks run only on the module root.
+skip-path:
+  - examples/
+
+# Each skip links the issue that owns the fix. Remove the skip in the PR that fixes it.
+# Reference: https://www.checkov.io/5.Policy%20Index/terraform.html
+skip-check:
+  # Flow log IAM policy uses resources = ["*"]. Fix tracked in #11.
+  - CKV_AWS_111
+  - CKV_AWS_356
+  # Flow log log group retention is 90 days, not 365. Fix tracked in #11.
+  - CKV_AWS_338
+  # aws_availability_zones does not pin the AZ set. Fix tracked in #13.
+  - CKV_AWS_394
+  # False positive: with default inputs the default SG is managed with no ingress or egress
+  # rules, so it restricts all traffic.
+  - CKV2_AWS_12
