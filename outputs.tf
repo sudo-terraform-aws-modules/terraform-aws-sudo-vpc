@@ -114,7 +114,7 @@ output "default_vpc_cidr_block" {
 }
 
 output "default_vpc_default_security_group_id" {
-  description = "Seucrity Group ID for default security group of default VPC"
+  description = "Security Group ID for default security group of default VPC"
   value       = try(aws_default_vpc.this[0].default_security_group_id, "")
 }
 
