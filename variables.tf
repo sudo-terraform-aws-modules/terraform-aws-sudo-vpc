@@ -351,15 +351,25 @@ variable "flow_log_log_format" {
 }
 
 variable "flow_log_destination_arn" {
-  description = "(optional) The ARN of the CloudWatch log group or S3 bucket where VPC Flow Logs will be pushed. If this ARN is a S3 bucket the appropriate permissions need to be set on that bucket's policy. When create_flow_log_cloudwatch_log_group is set to false this argument must be provided."
+  description = "(optional) The ARN of the CloudWatch log group or S3 bucket where VPC Flow Logs will be pushed. If this ARN is a S3 bucket the appropriate permissions need to be set on that bucket's policy. When create_flow_log_cloudwatch_log_group is set to false this argument must be provided. Default: null"
   type        = string
-  default     = ""
+  default     = null
+
+  validation {
+    condition     = var.flow_log_destination_arn == null || can(regex("^arn:", var.flow_log_destination_arn))
+    error_message = "flow_log_destination_arn must be an ARN or null. Use null instead of an empty string."
+  }
 }
 
 variable "flow_log_cloudwatch_iam_role_arn" {
-  description = "(optional) The ARN for the IAM role that's used to post flow logs to a CloudWatch Logs log group. When flow_log_destination_arn is set to ARN of Cloudwatch Logs, this argument needs to be provided."
+  description = "(optional) The ARN for the IAM role that's used to post flow logs to a CloudWatch Logs log group. When flow_log_destination_arn is set to ARN of Cloudwatch Logs, this argument needs to be provided. Default: null"
   type        = string
-  default     = ""
+  default     = null
+
+  validation {
+    condition     = var.flow_log_cloudwatch_iam_role_arn == null || can(regex("^arn:", var.flow_log_cloudwatch_iam_role_arn))
+    error_message = "flow_log_cloudwatch_iam_role_arn must be an ARN or null. Use null instead of an empty string."
+  }
 }
 
 variable "flow_log_cloudwatch_log_group_name_prefix" {
@@ -369,9 +379,14 @@ variable "flow_log_cloudwatch_log_group_name_prefix" {
 }
 
 variable "flow_log_cloudwatch_log_group_name_suffix" {
-  description = "(optional) Specifies the name suffix of CloudWatch Log Group for VPC flow logs."
+  description = "(optional) Specifies the name suffix of CloudWatch Log Group for VPC flow logs. null uses the VPC ID. Default: null"
   type        = string
-  default     = ""
+  default     = null
+
+  validation {
+    condition     = var.flow_log_cloudwatch_log_group_name_suffix == null || try(length(var.flow_log_cloudwatch_log_group_name_suffix) > 0, false)
+    error_message = "flow_log_cloudwatch_log_group_name_suffix must be a non-empty string or null. Use null instead of an empty string to get the VPC ID."
+  }
 }
 
 variable "flow_log_cloudwatch_log_group_retention_in_days" {
@@ -425,9 +440,14 @@ variable "enable_vpn_gateway" {
 }
 
 variable "vpn_gateway_id" {
-  description = "(optional) Provide the ID of existing VPN gateway to attach to VPC"
+  description = "(optional) Provide the ID of existing VPN gateway to attach to VPC. null attaches none. Default: null"
   type        = string
-  default     = ""
+  default     = null
+
+  validation {
+    condition     = var.vpn_gateway_id == null || can(regex("^vgw-", var.vpn_gateway_id))
+    error_message = "vpn_gateway_id must be a VPN gateway ID (vgw-...) or null. Use null instead of an empty string."
+  }
 }
 
 variable "amazon_side_asn" {
