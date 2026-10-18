@@ -140,12 +140,10 @@ output "private_route_table_ids" {
 
 output "database_subnet_group" {
   description = "ID of database subnet group"
-  # tflint-ignore: terraform_deprecated_index # Fixed in #12 PR 2.
-  value = concat(aws_db_subnet_group.database.*.id, [""])[0]
+  value       = concat(aws_db_subnet_group.database[*].id, [""])[0]
 }
 
 output "database_subnet_group_name" {
   description = "Name of database subnet group"
-  # tflint-ignore: terraform_deprecated_index # Fixed in #12 PR 2.
-  value = concat(aws_db_subnet_group.database.*.name, [""])[0]
+  value       = concat(aws_db_subnet_group.database[*].name, [""])[0]
 }
