@@ -395,7 +395,7 @@ resource "aws_vpn_gateway" "this" {
 }
 
 resource "aws_vpn_gateway_attachment" "this" {
-  count = var.vpn_gateway_id != "" ? 1 : 0
+  count = local.create_vpc && var.vpn_gateway_id != "" ? 1 : 0
 
   vpc_id         = local.vpc_id
   vpn_gateway_id = var.vpn_gateway_id
