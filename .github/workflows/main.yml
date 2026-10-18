@@ -1,30 +1,58 @@
 on:
   push:
     branches:
-    - master
+      - main
   pull_request:
     branches:
-      - master
+      - main
     types: [opened, synchronize]
 
-name: Terraform pipeline
+name: Terraform CI
 
 jobs:
-  checkov-job:
+  pre-commit:
     runs-on: ubuntu-latest
-    name: checkov-action
+    name: pre-commit
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@master
-
-      - name: Run Checkov action
-        id: checkov
-        uses: bridgecrewio/checkov-action@master
+      - uses: actions/checkout@v6
         with:
-          directory: ./
-          quiet: true # optional: display only failed checks
-          soft_fail: false # optional: do not return an error code if there are failed checks
-          framework: terraform # optional: run only on a specific infrastructure {cloudformation,terraform,kubernetes,all}
-          output_format: json # optional: the output format, one of: cli, json, junitxml, github_failed_only
-          download_external_modules: true # optional: download external terraform modules from public git repositories and terraform registry
-          log_level: DEBUG # optional: set log level. Default WARNIN
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - uses: hashicorp/setup-terraform@v4
+
+      - name: Install tflint
+        uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: latest
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Run pre-commit hooks
+        # terraform_validate requires `terraform init` - skipped in CI; covered by checkov.
+        # terraform_docs requires terraform-docs binary - skipped in CI; runs locally.
+        # no-commit-to-branch is a local guard only - not meaningful in CI.
+        run: |
+          SKIP=terraform_validate,terraform_docs,no-commit-to-branch pre-commit run --all-files
+          # Scoped to the one pre-push hook. `--hook-stage pre-push` without a hook id
+          # re-runs every hook that does not restrict its stages, doubling the job.
+          pre-commit run protect-default-branches --all-files --hook-stage pre-push
+
+  checkov:
+    runs-on: ubuntu-latest
+    name: checkov
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run Checkov
+        id: checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          config_file: checkov.yaml
+          quiet: true
+          soft_fail: false
+          download_external_modules: true
