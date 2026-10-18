@@ -8,6 +8,7 @@ All notable changes to this module are documented here. The format follows [Keep
 
 - Validations for `instance_tenancy`, `flow_log_traffic_type`, `flow_log_destination_type` and `flow_log_max_aggregation_interval`. Invalid values now fail at plan time instead of at apply time (#9).
 - `flow_log_file_format`, `flow_log_hive_compatible_partitions` and `flow_log_per_hour_partition` for S3 flow log destinations. Previously an S3 destination failed because these variables were missing (#9).
+- `examples/minimal` and `examples/complete`, replacing `example/`, which was a module call with no provider. The complete example covers NAT, flow logs, the database subnet group, the default security group and VPN gateways, and leaves out the features #10 tracks as broken (#12).
 
 ### Changed
 
