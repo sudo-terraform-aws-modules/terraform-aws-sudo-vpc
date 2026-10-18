@@ -463,9 +463,13 @@ variable "vpn_gateway_tags" {
 }
 
 variable "customer_gateways" {
-  description = "(optional) Maps of Customer Gateways"
-  type        = map(map(any))
-  default     = {}
+  description = "(optional) Map of customer gateways to create, keyed by a name used in the Name tag. bgp_asn and ip_address are required."
+  type = map(object({
+    bgp_asn     = string
+    ip_address  = string
+    device_name = optional(string)
+  }))
+  default = {}
 }
 
 variable "customer_gateway_tags" {

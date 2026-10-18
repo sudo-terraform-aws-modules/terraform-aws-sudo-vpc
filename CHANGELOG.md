@@ -15,6 +15,7 @@ All notable changes to this module are documented here. The format follows [Keep
 - **Breaking:** `flow_log_cloudwatch_log_group_retention_in_days` defaults to `90` (was `null`, which kept logs forever). Existing CloudWatch flow log groups created by the module change to 90-day retention on the next apply. Set the variable to `0` to keep logs forever (#9).
 - **Breaking:** `vpn_gateway_id`, `flow_log_destination_arn`, `flow_log_cloudwatch_iam_role_arn` and `flow_log_cloudwatch_log_group_name_suffix` default to `null` instead of `""`, and an empty string now fails validation at plan time. To migrate, replace any `""` you pass for these with `null` or remove the argument. The behaviour for `null` matches what `""` used to do (#12).
 - **Breaking:** outputs for resources that are not created return `null` instead of `""`. This covers the `vpc_*`, `default_*`, `vgw_*`, `default_vpc_*` and `database_subnet_group*` outputs. To migrate, replace checks such as `output != ""` with `output != null`, and wrap string interpolation of these outputs in `coalesce()` or a conditional (#12).
+- `customer_gateways` is now a map of objects with `bgp_asn`, `ip_address` and optional `device_name`, instead of `map(map(any))`. Inputs that worked before keep working; a numeric `bgp_asn` is converted to the string the provider expects. A missing `bgp_asn` or `ip_address` is now reported as a type error at plan time (#12).
 
 ### Removed
 
