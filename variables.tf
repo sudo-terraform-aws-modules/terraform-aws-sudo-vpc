@@ -277,15 +277,35 @@ variable "default_security_group_name" {
 }
 
 variable "default_security_group_ingress" {
-  description = "List of maps of ingress rules to set on the default security group"
-  type        = list(map(string))
-  default     = []
+  description = "List of ingress rules to set on the default security group. An empty list removes all ingress rules. from_port and to_port default to 0 and protocol to \"-1\" (all traffic)."
+  type = list(object({
+    description      = optional(string)
+    from_port        = optional(number, 0)
+    to_port          = optional(number, 0)
+    protocol         = optional(string, "-1")
+    self             = optional(bool)
+    cidr_blocks      = optional(list(string), [])
+    ipv6_cidr_blocks = optional(list(string), [])
+    prefix_list_ids  = optional(list(string), [])
+    security_groups  = optional(list(string), [])
+  }))
+  default = []
 }
 
 variable "default_security_group_egress" {
-  description = "List of maps of egress rules to set on the default security group"
-  type        = list(map(string))
-  default     = []
+  description = "List of egress rules to set on the default security group. An empty list removes all egress rules. from_port and to_port default to 0 and protocol to \"-1\" (all traffic)."
+  type = list(object({
+    description      = optional(string)
+    from_port        = optional(number, 0)
+    to_port          = optional(number, 0)
+    protocol         = optional(string, "-1")
+    self             = optional(bool)
+    cidr_blocks      = optional(list(string), [])
+    ipv6_cidr_blocks = optional(list(string), [])
+    prefix_list_ids  = optional(list(string), [])
+    security_groups  = optional(list(string), [])
+  }))
+  default = []
 }
 
 variable "default_security_group_tags" {
