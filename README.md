@@ -175,18 +175,18 @@ No modules.
 | ---- | ----------- |
 | <a name="output_cgw_arns"></a> [cgw\_arns](#output\_cgw\_arns) | Customer Gateway ARNs list |
 | <a name="output_cgw_ids"></a> [cgw\_ids](#output\_cgw\_ids) | Customer Gateway ID List |
-| <a name="output_database_subnet_group"></a> [database\_subnet\_group](#output\_database\_subnet\_group) | ID of database subnet group |
-| <a name="output_database_subnet_group_name"></a> [database\_subnet\_group\_name](#output\_database\_subnet\_group\_name) | Name of database subnet group |
+| <a name="output_database_subnet_group"></a> [database\_subnet\_group](#output\_database\_subnet\_group) | ID of database subnet group, or null when not created |
+| <a name="output_database_subnet_group_name"></a> [database\_subnet\_group\_name](#output\_database\_subnet\_group\_name) | Name of database subnet group, or null when not created |
 | <a name="output_database_subnets"></a> [database\_subnets](#output\_database\_subnets) | Database Subnet ID List |
-| <a name="output_default_network_acl_id"></a> [default\_network\_acl\_id](#output\_default\_network\_acl\_id) | Default Network ACL ID |
-| <a name="output_default_route_table_id"></a> [default\_route\_table\_id](#output\_default\_route\_table\_id) | Default Route Table ID |
-| <a name="output_default_security_group_id"></a> [default\_security\_group\_id](#output\_default\_security\_group\_id) | Default Security Group ID |
-| <a name="output_default_vpc_arn"></a> [default\_vpc\_arn](#output\_default\_vpc\_arn) | Default VPC ARN |
-| <a name="output_default_vpc_cidr_block"></a> [default\_vpc\_cidr\_block](#output\_default\_vpc\_cidr\_block) | Default VPC CIDR Block |
-| <a name="output_default_vpc_default_network_acl_id"></a> [default\_vpc\_default\_network\_acl\_id](#output\_default\_vpc\_default\_network\_acl\_id) | Default NACL ID of the Default VPC |
-| <a name="output_default_vpc_default_route_table_id"></a> [default\_vpc\_default\_route\_table\_id](#output\_default\_vpc\_default\_route\_table\_id) | Default route table ID of the default VPC |
-| <a name="output_default_vpc_default_security_group_id"></a> [default\_vpc\_default\_security\_group\_id](#output\_default\_vpc\_default\_security\_group\_id) | Security Group ID for default security group of default VPC |
-| <a name="output_default_vpc_id"></a> [default\_vpc\_id](#output\_default\_vpc\_id) | Default VPC ID |
+| <a name="output_default_network_acl_id"></a> [default\_network\_acl\_id](#output\_default\_network\_acl\_id) | Default Network ACL ID, or null when not created |
+| <a name="output_default_route_table_id"></a> [default\_route\_table\_id](#output\_default\_route\_table\_id) | Default Route Table ID, or null when not created |
+| <a name="output_default_security_group_id"></a> [default\_security\_group\_id](#output\_default\_security\_group\_id) | Default Security Group ID, or null when not created |
+| <a name="output_default_vpc_arn"></a> [default\_vpc\_arn](#output\_default\_vpc\_arn) | Default VPC ARN, or null when not created |
+| <a name="output_default_vpc_cidr_block"></a> [default\_vpc\_cidr\_block](#output\_default\_vpc\_cidr\_block) | Default VPC CIDR Block, or null when not created |
+| <a name="output_default_vpc_default_network_acl_id"></a> [default\_vpc\_default\_network\_acl\_id](#output\_default\_vpc\_default\_network\_acl\_id) | Default NACL ID of the Default VPC, or null when not created |
+| <a name="output_default_vpc_default_route_table_id"></a> [default\_vpc\_default\_route\_table\_id](#output\_default\_vpc\_default\_route\_table\_id) | Default route table ID of the default VPC, or null when not created |
+| <a name="output_default_vpc_default_security_group_id"></a> [default\_vpc\_default\_security\_group\_id](#output\_default\_vpc\_default\_security\_group\_id) | Security Group ID for default security group of default VPC, or null when not created |
+| <a name="output_default_vpc_id"></a> [default\_vpc\_id](#output\_default\_vpc\_id) | Default VPC ID, or null when not created |
 | <a name="output_private_route_table_ids"></a> [private\_route\_table\_ids](#output\_private\_route\_table\_ids) | Private route tables IDs |
 | <a name="output_private_subnet_arns"></a> [private\_subnet\_arns](#output\_private\_subnet\_arns) | Private Subnet ARN List |
 | <a name="output_private_subnets"></a> [private\_subnets](#output\_private\_subnets) | Private Subnet ID List |
@@ -198,11 +198,11 @@ No modules.
 | <a name="output_public_subnets_cidr_blocks"></a> [public\_subnets\_cidr\_blocks](#output\_public\_subnets\_cidr\_blocks) | Public Subnet CIDR Block list |
 | <a name="output_public_subnets_ipv6_cidr_blocks"></a> [public\_subnets\_ipv6\_cidr\_blocks](#output\_public\_subnets\_ipv6\_cidr\_blocks) | Public Subnet IPv6 CIDR block list |
 | <a name="output_this_customer_gateway"></a> [this\_customer\_gateway](#output\_this\_customer\_gateway) | Customer Gateway attributes map |
-| <a name="output_vgw_arn"></a> [vgw\_arn](#output\_vgw\_arn) | VPN Gateway ARN |
-| <a name="output_vgw_id"></a> [vgw\_id](#output\_vgw\_id) | VPN Gateway ID |
-| <a name="output_vpc_arn"></a> [vpc\_arn](#output\_vpc\_arn) | VPC ARN |
-| <a name="output_vpc_cidr_block"></a> [vpc\_cidr\_block](#output\_vpc\_cidr\_block) | VPC CIDR Block |
-| <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id) | VPC ID |
+| <a name="output_vgw_arn"></a> [vgw\_arn](#output\_vgw\_arn) | VPN Gateway ARN, or null when not created |
+| <a name="output_vgw_id"></a> [vgw\_id](#output\_vgw\_id) | VPN Gateway ID, or null when not created |
+| <a name="output_vpc_arn"></a> [vpc\_arn](#output\_vpc\_arn) | VPC ARN, or null when not created |
+| <a name="output_vpc_cidr_block"></a> [vpc\_cidr\_block](#output\_vpc\_cidr\_block) | VPC CIDR Block, or null when not created |
+| <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id) | VPC ID, or null when not created |
 <!-- END_TF_DOCS -->
 
 # Credit
