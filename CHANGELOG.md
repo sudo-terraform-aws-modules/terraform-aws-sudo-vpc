@@ -21,6 +21,7 @@ All notable changes to this module are documented here. The format follows [Keep
 ### Removed
 
 - **Breaking:** the unused variables `default_vpc_enable_classiclink` and `propagate_intra_route_tables_vgw`. Neither changed any resource. To migrate, delete them from your module call, otherwise Terraform reports an unsupported argument (#12).
+- **Breaking:** the `hashicorp/random` provider requirement and the `random_string.random` resource. The random suffix only ever reached the default security group Name tag: with `name = "sudo-vpc"` (the default) that tag changes in place from `sudo-vpc-<6 random characters>-default-security-group` to `sudo-vpc-default-security-group`, and `random_string.random` is destroyed on the next apply. Nothing in AWS is replaced. To keep a unique tag, set `name` or `default_security_group_name` (#12).
 
 ### Fixed
 

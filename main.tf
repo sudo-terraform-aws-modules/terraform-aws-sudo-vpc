@@ -11,8 +11,7 @@ locals {
   single_nat_gateway = var.one_nat_gateway_per_az ? false : var.single_nat_gateway
   # Use `local.vpc_id` to give a hint to Terraform that subnets should be deleted before secondary CIDR blocks can be free!
   vpc_id                      = try(aws_vpc_ipv4_cidr_block_association.this[0].vpc_id, aws_vpc.this[0].id, "")
-  name                        = var.name == "sudo-vpc" ? "sudo-vpc-${random_string.random.result}" : var.name
-  default_security_group_name = coalesce(var.default_security_group_name, "${local.name}-default-security-group")
+  default_security_group_name = coalesce(var.default_security_group_name, "${var.name}-default-security-group")
   cidr                        = var.cidr == "0.0.0.0/0" ? "172.31.0.0/16" : var.cidr
   create_vpc                  = var.create_vpc
 
@@ -39,12 +38,6 @@ data "aws_availability_zones" "azs" {
     name   = "opt-in-status"
     values = ["opt-in-not-required"]
   }
-}
-
-resource "random_string" "random" {
-  length  = 6
-  special = false
-  upper   = false
 }
 
 ################################################################################
