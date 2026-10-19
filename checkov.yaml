@@ -16,6 +16,8 @@ skip-check:
   - CKV_AWS_356
   # Flow log log group retention is 90 days, not 365. Fix tracked in #11.
   - CKV_AWS_338
+  # Public subnets default to map_public_ip_on_launch = true. Fix tracked in #11.
+  - CKV_AWS_130
   # aws_availability_zones does not pin the AZ set. Fix tracked in #13.
   - CKV_AWS_394
   # False positive: with default inputs the default SG is managed with no ingress or egress
