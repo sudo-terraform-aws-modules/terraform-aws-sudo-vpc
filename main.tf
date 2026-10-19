@@ -15,7 +15,8 @@ locals {
   default_security_group_name = coalesce(var.default_security_group_name, "${local.name}-default-security-group")
   cidr                        = var.cidr == "0.0.0.0/0" ? "172.31.0.0/16" : var.cidr
   create_vpc                  = var.create_vpc
-  cidr_prefix_match           = regexall("/([0-9]{2})", local.cidr)
+  # tflint-ignore: terraform_unused_declarations # Removed in #12 PR 3.
+  cidr_prefix_match = regexall("/([0-9]{2})", local.cidr)
   #cidr_prefix                 = length(local.cidr_prefix_match) > 0 ? tonumber(local.cidr_prefix_match[0][0]) : 16
   #validate_cidr_prefix        = local.max_subnet_length == 0 && var.cidr != "0.0.0.0/0" && local.cidr_prefix > 20 ? tobool("Please provide subnet addressing for VPC greater than /20 prefix") : true
 
@@ -530,9 +531,11 @@ resource "aws_route" "database_internet_gateway" {
 resource "aws_route" "database_nat_gateway" {
   count = var.create_vpc && var.create_database_subnet_route_table && length(var.database_subnets) > 0 && false == var.create_database_internet_gateway_route && var.create_database_nat_gateway_route && var.enable_nat_gateway ? var.single_nat_gateway ? 1 : length(var.database_subnets) : 0
 
+  # tflint-ignore: terraform_deprecated_index # Fixed in #12 PR 2.
   route_table_id         = element(aws_route_table.database.*.id, count.index)
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = element(aws_nat_gateway.this.*.id, count.index)
+  # tflint-ignore: terraform_deprecated_index # Fixed in #12 PR 2.
+  nat_gateway_id = element(aws_nat_gateway.this.*.id, count.index)
 
   timeouts {
     create = "5m"

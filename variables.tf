@@ -460,6 +460,7 @@ variable "vpn_gateway_az" {
   default     = null
 }
 
+# tflint-ignore: terraform_unused_declarations # Removed in #12 PR 3.
 variable "propagate_intra_route_tables_vgw" {
   description = "(optional) Set to true to enable route table propogation. Default: false"
   type        = bool
@@ -516,6 +517,7 @@ variable "default_vpc_tags" {
   default     = {}
 }
 
+# tflint-ignore: terraform_unused_declarations # Wired up in #11.
 variable "manage_default_network_acl" {
   description = "(optional) Default network ACL management. Default: false"
   type        = bool
