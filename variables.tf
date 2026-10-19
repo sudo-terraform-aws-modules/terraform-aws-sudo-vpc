@@ -277,15 +277,35 @@ variable "default_security_group_name" {
 }
 
 variable "default_security_group_ingress" {
-  description = "List of maps of ingress rules to set on the default security group"
-  type        = list(map(string))
-  default     = []
+  description = "List of ingress rules to set on the default security group. An empty list removes all ingress rules. from_port and to_port default to 0 and protocol to \"-1\" (all traffic)."
+  type = list(object({
+    description      = optional(string)
+    from_port        = optional(number, 0)
+    to_port          = optional(number, 0)
+    protocol         = optional(string, "-1")
+    self             = optional(bool)
+    cidr_blocks      = optional(list(string), [])
+    ipv6_cidr_blocks = optional(list(string), [])
+    prefix_list_ids  = optional(list(string), [])
+    security_groups  = optional(list(string), [])
+  }))
+  default = []
 }
 
 variable "default_security_group_egress" {
-  description = "List of maps of egress rules to set on the default security group"
-  type        = list(map(string))
-  default     = []
+  description = "List of egress rules to set on the default security group. An empty list removes all egress rules. from_port and to_port default to 0 and protocol to \"-1\" (all traffic)."
+  type = list(object({
+    description      = optional(string)
+    from_port        = optional(number, 0)
+    to_port          = optional(number, 0)
+    protocol         = optional(string, "-1")
+    self             = optional(bool)
+    cidr_blocks      = optional(list(string), [])
+    ipv6_cidr_blocks = optional(list(string), [])
+    prefix_list_ids  = optional(list(string), [])
+    security_groups  = optional(list(string), [])
+  }))
+  default = []
 }
 
 variable "default_security_group_tags" {
@@ -351,15 +371,25 @@ variable "flow_log_log_format" {
 }
 
 variable "flow_log_destination_arn" {
-  description = "(optional) The ARN of the CloudWatch log group or S3 bucket where VPC Flow Logs will be pushed. If this ARN is a S3 bucket the appropriate permissions need to be set on that bucket's policy. When create_flow_log_cloudwatch_log_group is set to false this argument must be provided."
+  description = "(optional) The ARN of the CloudWatch log group or S3 bucket where VPC Flow Logs will be pushed. If this ARN is a S3 bucket the appropriate permissions need to be set on that bucket's policy. When create_flow_log_cloudwatch_log_group is set to false this argument must be provided. Default: null"
   type        = string
-  default     = ""
+  default     = null
+
+  validation {
+    condition     = var.flow_log_destination_arn == null || can(regex("^arn:", var.flow_log_destination_arn))
+    error_message = "flow_log_destination_arn must be an ARN or null. Use null instead of an empty string."
+  }
 }
 
 variable "flow_log_cloudwatch_iam_role_arn" {
-  description = "(optional) The ARN for the IAM role that's used to post flow logs to a CloudWatch Logs log group. When flow_log_destination_arn is set to ARN of Cloudwatch Logs, this argument needs to be provided."
+  description = "(optional) The ARN for the IAM role that's used to post flow logs to a CloudWatch Logs log group. When flow_log_destination_arn is set to ARN of Cloudwatch Logs, this argument needs to be provided. Default: null"
   type        = string
-  default     = ""
+  default     = null
+
+  validation {
+    condition     = var.flow_log_cloudwatch_iam_role_arn == null || can(regex("^arn:", var.flow_log_cloudwatch_iam_role_arn))
+    error_message = "flow_log_cloudwatch_iam_role_arn must be an ARN or null. Use null instead of an empty string."
+  }
 }
 
 variable "flow_log_cloudwatch_log_group_name_prefix" {
@@ -369,9 +399,14 @@ variable "flow_log_cloudwatch_log_group_name_prefix" {
 }
 
 variable "flow_log_cloudwatch_log_group_name_suffix" {
-  description = "(optional) Specifies the name suffix of CloudWatch Log Group for VPC flow logs."
+  description = "(optional) Specifies the name suffix of CloudWatch Log Group for VPC flow logs. null uses the VPC ID. Default: null"
   type        = string
-  default     = ""
+  default     = null
+
+  validation {
+    condition     = var.flow_log_cloudwatch_log_group_name_suffix == null || try(length(var.flow_log_cloudwatch_log_group_name_suffix) > 0, false)
+    error_message = "flow_log_cloudwatch_log_group_name_suffix must be a non-empty string or null. Use null instead of an empty string to get the VPC ID."
+  }
 }
 
 variable "flow_log_cloudwatch_log_group_retention_in_days" {
@@ -425,9 +460,14 @@ variable "enable_vpn_gateway" {
 }
 
 variable "vpn_gateway_id" {
-  description = "(optional) Provide the ID of existing VPN gateway to attach to VPC"
+  description = "(optional) Provide the ID of existing VPN gateway to attach to VPC. null attaches none. Default: null"
   type        = string
-  default     = ""
+  default     = null
+
+  validation {
+    condition     = var.vpn_gateway_id == null || can(regex("^vgw-", var.vpn_gateway_id))
+    error_message = "vpn_gateway_id must be a VPN gateway ID (vgw-...) or null. Use null instead of an empty string."
+  }
 }
 
 variable "amazon_side_asn" {
@@ -443,9 +483,13 @@ variable "vpn_gateway_tags" {
 }
 
 variable "customer_gateways" {
-  description = "(optional) Maps of Customer Gateways"
-  type        = map(map(any))
-  default     = {}
+  description = "(optional) Map of customer gateways to create, keyed by a name used in the Name tag. bgp_asn and ip_address are required."
+  type = map(object({
+    bgp_asn     = string
+    ip_address  = string
+    device_name = optional(string)
+  }))
+  default = {}
 }
 
 variable "customer_gateway_tags" {
@@ -460,21 +504,14 @@ variable "vpn_gateway_az" {
   default     = null
 }
 
-# tflint-ignore: terraform_unused_declarations # Removed in #12 PR 3.
-variable "propagate_intra_route_tables_vgw" {
-  description = "(optional) Set to true to enable route table propogation. Default: false"
-  type        = bool
-  default     = false
-}
-
 variable "propagate_private_route_tables_vgw" {
-  description = "(optional) Set to true to enable route table propogation. Default: false"
+  description = "(optional) Set to true to enable route table propagation. Default: false"
   type        = bool
   default     = false
 }
 
 variable "propagate_public_route_tables_vgw" {
-  description = "(optional) Set to true to enable route table propogation. Default: false"
+  description = "(optional) Set to true to enable route table propagation. Default: false"
   type        = bool
   default     = false
 }
@@ -499,14 +536,7 @@ variable "default_vpc_enable_dns_support" {
 }
 
 variable "default_vpc_enable_dns_hostnames" {
-  description = "(optional) Set to true to enable Default VPC DNS Hostname. Default: true"
-  type        = bool
-  default     = false
-}
-
-# tflint-ignore: terraform_unused_declarations
-variable "default_vpc_enable_classiclink" {
-  description = "Backward compatibility only, not used."
+  description = "(optional) Set to true to enable Default VPC DNS Hostname. Default: false"
   type        = bool
   default     = false
 }
