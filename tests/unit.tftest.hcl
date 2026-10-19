@@ -488,3 +488,44 @@ run "no_database_route_table_by_default" {
     error_message = "Database subnets must stay on the main route table unless create_database_subnet_route_table is set."
   }
 }
+
+run "database_network_acl_default_rules" {
+  command = plan
+
+  variables {
+    database_dedicated_network_acl = true
+  }
+
+  assert {
+    condition     = length(aws_network_acl_rule.database_inbound) == 1 && length(aws_network_acl_rule.database_outbound) == 1
+    error_message = "The dedicated database NACL must not deny all traffic by default."
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.database_inbound[0].rule_action == "allow" && aws_network_acl_rule.database_inbound[0].protocol == "-1" && aws_network_acl_rule.database_outbound[0].egress
+    error_message = "Default database NACL rules must allow all traffic in and out."
+  }
+}
+
+run "database_network_acl_custom_rules" {
+  command = plan
+
+  variables {
+    cidr                           = "10.0.0.0/16"
+    database_dedicated_network_acl = true
+    database_inbound_acl_rules = [
+      { rule_number = 100, rule_action = "allow", protocol = "tcp", from_port = 5432, to_port = 5432, cidr_block = "10.0.0.0/16" },
+      { rule_number = 110, rule_action = "allow", protocol = "tcp", from_port = 1024, to_port = 65535, cidr_block = "0.0.0.0/0" },
+    ]
+  }
+
+  assert {
+    condition     = length(aws_network_acl_rule.database_inbound) == 2 && aws_network_acl_rule.database_inbound[0].from_port == 5432 && aws_network_acl_rule.database_inbound[0].cidr_block == "10.0.0.0/16"
+    error_message = "Custom inbound rules must be created as given."
+  }
+
+  assert {
+    condition     = !aws_network_acl_rule.database_inbound[0].egress && length(aws_network_acl_rule.database_outbound) == 1
+    error_message = "Inbound rules must be ingress, and outbound keeps its default."
+  }
+}

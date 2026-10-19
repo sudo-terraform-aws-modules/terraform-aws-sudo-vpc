@@ -9,6 +9,7 @@ All notable changes to this module are documented here. The format follows [Keep
 - Validations for `instance_tenancy`, `flow_log_traffic_type`, `flow_log_destination_type` and `flow_log_max_aggregation_interval`. Invalid values now fail at plan time instead of at apply time (#9).
 - `flow_log_file_format`, `flow_log_hive_compatible_partitions` and `flow_log_per_hour_partition` for S3 flow log destinations. Previously an S3 destination failed because these variables were missing (#9).
 - `examples/minimal` and `examples/complete`, replacing `example/`, which was a module call with no provider. The complete example covers NAT, flow logs, the database subnet group, the default security group and VPN gateways, and leaves out the features #10 tracks as broken (#12).
+- `database_inbound_acl_rules` and `database_outbound_acl_rules` for the dedicated database network ACL. Both default to one rule that allows all traffic, as upstream does. NACLs are stateless, so tighter rules must also allow return traffic for anything the database subnets reach out to (#10).
 
 ### Changed
 
@@ -34,6 +35,7 @@ All notable changes to this module are documented here. The format follows [Keep
 - Private VGW route propagation now creates one propagation per private route table. Before, it created one per entry in `private_subnets`: with a single NAT gateway that put several propagations on the same route table, and with subnets carved by the module it created none (#10).
 - `create_database_subnet_route_table = true` now associates the database subnets with the database route table, so the database NAT and internet gateway routes take effect. Before, no association existed and the subnets stayed on the main route table. Existing VPCs with this setting get the associations on the next apply, which moves the database subnets onto the database route table (#10).
 - Database route tables and routes now follow the subnets the module actually creates: database subnets carved from `cidr` get a route table, per-AZ database route tables no longer fail the plan when `azs` is not set, and `one_nat_gateway_per_az` gives each database subnet the route table and NAT gateway of its AZ. With `one_nat_gateway_per_az = true`, existing VPCs gain the second and third database route tables on the next apply (#10).
+- `database_dedicated_network_acl = true` no longer denies all traffic. The NACL was created with no rules, which made every database in those subnets unreachable. It now gets the rules from `database_inbound_acl_rules` and `database_outbound_acl_rules`, which allow all traffic by default. Existing VPCs with this setting get the allow-all rules on the next apply (#10).
 
 <!--
 Group entries under Added, Changed, Deprecated, Removed, Fixed or Security, and drop the

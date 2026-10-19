@@ -576,3 +576,37 @@ resource "aws_network_acl" "database" {
     var.tags
   )
 }
+
+resource "aws_network_acl_rule" "database_inbound" {
+  count = local.create_database_network_acl ? length(var.database_inbound_acl_rules) : 0
+
+  network_acl_id = aws_network_acl.database[0].id
+
+  egress          = false
+  rule_number     = var.database_inbound_acl_rules[count.index].rule_number
+  rule_action     = var.database_inbound_acl_rules[count.index].rule_action
+  protocol        = var.database_inbound_acl_rules[count.index].protocol
+  from_port       = var.database_inbound_acl_rules[count.index].from_port
+  to_port         = var.database_inbound_acl_rules[count.index].to_port
+  icmp_type       = var.database_inbound_acl_rules[count.index].icmp_type
+  icmp_code       = var.database_inbound_acl_rules[count.index].icmp_code
+  cidr_block      = var.database_inbound_acl_rules[count.index].cidr_block
+  ipv6_cidr_block = var.database_inbound_acl_rules[count.index].ipv6_cidr_block
+}
+
+resource "aws_network_acl_rule" "database_outbound" {
+  count = local.create_database_network_acl ? length(var.database_outbound_acl_rules) : 0
+
+  network_acl_id = aws_network_acl.database[0].id
+
+  egress          = true
+  rule_number     = var.database_outbound_acl_rules[count.index].rule_number
+  rule_action     = var.database_outbound_acl_rules[count.index].rule_action
+  protocol        = var.database_outbound_acl_rules[count.index].protocol
+  from_port       = var.database_outbound_acl_rules[count.index].from_port
+  to_port         = var.database_outbound_acl_rules[count.index].to_port
+  icmp_type       = var.database_outbound_acl_rules[count.index].icmp_type
+  icmp_code       = var.database_outbound_acl_rules[count.index].icmp_code
+  cidr_block      = var.database_outbound_acl_rules[count.index].cidr_block
+  ipv6_cidr_block = var.database_outbound_acl_rules[count.index].ipv6_cidr_block
+}
