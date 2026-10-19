@@ -35,7 +35,7 @@ module "vpc" {
   map_public_ip_on_launch = false
 
   # One NAT gateway for the whole VPC keeps the example cheap. Production VPCs
-  # usually want one per AZ; see #10 before using one_nat_gateway_per_az.
+  # usually want one per AZ, with one_nat_gateway_per_az = true.
   enable_nat_gateway = true
   single_nat_gateway = true
 
@@ -56,10 +56,11 @@ module "vpc" {
   default_security_group_ingress = []
   default_security_group_egress  = []
 
-  # Site-to-site VPN building blocks. Route propagation to the VGW is left off
-  # until #10 fixes it.
-  enable_vpn_gateway = true
-  amazon_side_asn    = "64620"
+  # Site-to-site VPN building blocks. The VGW propagates its routes into the
+  # private route tables.
+  enable_vpn_gateway                 = true
+  amazon_side_asn                    = "64620"
+  propagate_private_route_tables_vgw = true
 
   customer_gateways = {
     head-office = {
