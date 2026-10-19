@@ -29,6 +29,8 @@ All notable changes to this module are documented here. The format follows [Keep
 - `aws_vpn_gateway_attachment` is no longer created when `create_vpc = false`. Before, setting `vpn_gateway_id` without a VPC still planned an attachment, with an empty `vpc_id` (#12).
 - The `default_vpc_enable_dns_hostnames` description now states the real default, `false` (#12).
 - Flow logs with an S3 destination no longer send an empty `iam_role_arn`; it is now `null` (#12).
+- `one_nat_gateway_per_az = true` now routes each private subnet through the NAT gateway in its own AZ. Before, every private subnet was associated with the first private route table, so losing that AZ cut egress for all of them. Existing VPCs with this setting see the private route table associations replaced on the next apply (#10).
+- `single_nat_gateway = false` with subnets carved by the module now creates one NAT gateway and private route table per private subnet. Before, it created none and the plan failed (#10).
 
 <!--
 Group entries under Added, Changed, Deprecated, Removed, Fixed or Security, and drop the

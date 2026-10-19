@@ -312,3 +312,40 @@ run "rejects_invalid_flow_log_traffic_type" {
 
   expect_failures = [var.flow_log_traffic_type]
 }
+
+# Issue #10: NAT gateways and private routing.
+
+run "one_nat_gateway_per_az" {
+  command = apply
+
+  variables {
+    cidr                   = "10.0.0.0/16"
+    enable_nat_gateway     = true
+    one_nat_gateway_per_az = true
+  }
+
+  assert {
+    condition     = length(aws_nat_gateway.this) == 3 && length(aws_route_table.private) == 3
+    error_message = "one_nat_gateway_per_az with three AZs must create three NAT gateways and three private route tables."
+  }
+
+  assert {
+    condition     = aws_route_table_association.private[*].route_table_id == aws_route_table.private[*].id
+    error_message = "Each private subnet must use the route table, and so the NAT gateway, of its own AZ."
+  }
+}
+
+run "nat_gateway_per_subnet_with_carved_subnets" {
+  command = plan
+
+  variables {
+    cidr               = "10.0.0.0/16"
+    enable_nat_gateway = true
+    single_nat_gateway = false
+  }
+
+  assert {
+    condition     = length(aws_nat_gateway.this) == 3 && length(aws_route_table.private) == 3 && length(aws_route_table_association.private) == 3
+    error_message = "single_nat_gateway = false must give one NAT gateway and route table per private subnet when the module carves the subnets."
+  }
+}
