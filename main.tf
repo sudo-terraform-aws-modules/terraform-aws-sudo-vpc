@@ -237,7 +237,7 @@ resource "aws_route" "private_nat_gateway" {
 
 
 ################################################################################
-# Publiс routes
+# Public routes
 ################################################################################
 
 resource "aws_route_table" "public" {
@@ -395,7 +395,7 @@ resource "aws_vpn_gateway" "this" {
 }
 
 resource "aws_vpn_gateway_attachment" "this" {
-  count = var.vpn_gateway_id != "" ? 1 : 0
+  count = local.create_vpc && var.vpn_gateway_id != "" ? 1 : 0
 
   vpc_id         = local.vpc_id
   vpn_gateway_id = var.vpn_gateway_id
@@ -531,11 +531,9 @@ resource "aws_route" "database_internet_gateway" {
 resource "aws_route" "database_nat_gateway" {
   count = var.create_vpc && var.create_database_subnet_route_table && length(var.database_subnets) > 0 && false == var.create_database_internet_gateway_route && var.create_database_nat_gateway_route && var.enable_nat_gateway ? var.single_nat_gateway ? 1 : length(var.database_subnets) : 0
 
-  # tflint-ignore: terraform_deprecated_index # Fixed in #12 PR 2.
-  route_table_id         = element(aws_route_table.database.*.id, count.index)
+  route_table_id         = element(aws_route_table.database[*].id, count.index)
   destination_cidr_block = "0.0.0.0/0"
-  # tflint-ignore: terraform_deprecated_index # Fixed in #12 PR 2.
-  nat_gateway_id = element(aws_nat_gateway.this.*.id, count.index)
+  nat_gateway_id         = element(aws_nat_gateway.this[*].id, count.index)
 
   timeouts {
     create = "5m"
