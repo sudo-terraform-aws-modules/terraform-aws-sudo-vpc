@@ -35,7 +35,7 @@ module "vpc" {
 }
 ```
 
-See [examples/minimal](examples/minimal) and [examples/complete](examples/complete). The complete example adds flow logs for all traffic with one-year retention, a VPN gateway and a customer gateway.
+See [examples/minimal](examples/minimal) and [examples/complete](examples/complete). The complete example adds flow logs for all traffic with one-year retention, a database route table and network ACL, a VPN gateway with route propagation, and a customer gateway.
 
 ## Things to know before you apply
 
@@ -49,7 +49,7 @@ See [examples/minimal](examples/minimal) and [examples/complete](examples/comple
 
 **Permissions the caller needs.** Applying needs EC2 permissions for VPCs, subnets, route tables, internet and NAT gateways, Elastic IPs, network ACLs, security groups and, if used, VPN and customer gateways. The default flow logs also need CloudWatch Logs permissions to create the log group and set its retention, and IAM permissions to create the flow log role and policy, attach them and pass the role (`iam:PassRole`). To leave IAM out, send flow logs to S3, or pass `flow_log_cloudwatch_iam_role_arn` with `create_flow_log_cloudwatch_iam_role = false`. `vpc_flow_log_permissions_boundary` sets a permissions boundary on the role the module creates.
 
-**Known issues.** Some features do not work as documented yet: the database route table and its NAT and internet routes, and the dedicated database network ACL (it denies all traffic). They are tracked in #10, and the defaults in #11. The database subnet group is named after `name`, so two VPCs with the same `name` in one region collide.
+**Known issues.** Safer defaults are tracked in #11. The database subnet group is named after `name`, so two VPCs with the same `name` in one region collide.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements

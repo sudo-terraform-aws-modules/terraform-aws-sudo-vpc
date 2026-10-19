@@ -12,7 +12,7 @@ A Terraform module for an Amazon VPC, aligned with [sudo-terraform-module-templa
 - With `cidr` left at `0.0.0.0/0` the module uses `172.31.0.0/16` and carves the subnets itself. Changing `cidr` or the subnet lists replaces subnets.
 - Checkov skips in `checkov.yaml` each link the issue that owns the fix (#11, #13). Remove a skip in the same PR that fixes its finding. Do not add a skip without a linked issue or a documented false positive.
 - `tflint-ignore` comments link an issue in the same way and are removed when that issue lands.
-- Known bugs are tracked in #10 (database route table and NACL, ignored subnet inputs) and #11 (unsafe defaults). `examples/complete` leaves those features out. Add each back to the example and to the unit tests when it is fixed.
+- Known bugs are tracked in #10 (ignored subnet inputs) and #11 (unsafe defaults). Add a unit test with every fix, and add the feature to `examples/complete` when it is consumer-facing.
 - Unit tests in `tests/unit.tftest.hcl` use a mock provider and pin current, correct behaviour. Mock providers need Terraform 1.7+, so `make test` and the CI job use a newer Terraform than the module floor. Generated mock values are random strings, so `mock_resource` defaults supply real-looking ARNs for runs with `command = apply`. Add a test with every behaviour change.
 
 ## Git workflow (non-negotiable)
