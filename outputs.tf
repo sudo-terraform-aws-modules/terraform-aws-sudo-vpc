@@ -1,31 +1,31 @@
 output "vpc_id" {
-  description = "VPC ID"
-  value       = try(aws_vpc.this[0].id, "")
+  description = "VPC ID, or null when not created"
+  value       = try(aws_vpc.this[0].id, null)
 }
 
 output "vpc_arn" {
-  description = "VPC ARN"
-  value       = try(aws_vpc.this[0].arn, "")
+  description = "VPC ARN, or null when not created"
+  value       = try(aws_vpc.this[0].arn, null)
 }
 
 output "vpc_cidr_block" {
-  description = "VPC CIDR Block"
-  value       = try(aws_vpc.this[0].cidr_block, "")
+  description = "VPC CIDR Block, or null when not created"
+  value       = try(aws_vpc.this[0].cidr_block, null)
 }
 
 output "default_security_group_id" {
-  description = "Default Security Group ID"
-  value       = try(aws_vpc.this[0].default_security_group_id, "")
+  description = "Default Security Group ID, or null when not created"
+  value       = try(aws_vpc.this[0].default_security_group_id, null)
 }
 
 output "default_network_acl_id" {
-  description = "Default Network ACL ID"
-  value       = try(aws_vpc.this[0].default_network_acl_id, "")
+  description = "Default Network ACL ID, or null when not created"
+  value       = try(aws_vpc.this[0].default_network_acl_id, null)
 }
 
 output "default_route_table_id" {
-  description = "Default Route Table ID"
-  value       = try(aws_vpc.this[0].default_route_table_id, "")
+  description = "Default Route Table ID, or null when not created"
+  value       = try(aws_vpc.this[0].default_route_table_id, null)
 }
 
 
@@ -89,43 +89,43 @@ output "this_customer_gateway" {
 }
 
 output "vgw_id" {
-  description = "VPN Gateway ID"
-  value       = try(aws_vpn_gateway.this[0].id, aws_vpn_gateway_attachment.this[0].vpn_gateway_id, "")
+  description = "VPN Gateway ID, or null when not created"
+  value       = try(aws_vpn_gateway.this[0].id, aws_vpn_gateway_attachment.this[0].vpn_gateway_id, null)
 }
 
 output "vgw_arn" {
-  description = "VPN Gateway ARN"
-  value       = try(aws_vpn_gateway.this[0].arn, "")
+  description = "VPN Gateway ARN, or null when not created"
+  value       = try(aws_vpn_gateway.this[0].arn, null)
 }
 
 output "default_vpc_id" {
-  description = "Default VPC ID"
-  value       = try(aws_default_vpc.this[0].id, "")
+  description = "Default VPC ID, or null when not created"
+  value       = try(aws_default_vpc.this[0].id, null)
 }
 
 output "default_vpc_arn" {
-  description = "Default VPC ARN"
-  value       = try(aws_default_vpc.this[0].arn, "")
+  description = "Default VPC ARN, or null when not created"
+  value       = try(aws_default_vpc.this[0].arn, null)
 }
 
 output "default_vpc_cidr_block" {
-  description = "Default VPC CIDR Block"
-  value       = try(aws_default_vpc.this[0].cidr_block, "")
+  description = "Default VPC CIDR Block, or null when not created"
+  value       = try(aws_default_vpc.this[0].cidr_block, null)
 }
 
 output "default_vpc_default_security_group_id" {
-  description = "Seucrity Group ID for default security group of default VPC"
-  value       = try(aws_default_vpc.this[0].default_security_group_id, "")
+  description = "Security Group ID for default security group of default VPC, or null when not created"
+  value       = try(aws_default_vpc.this[0].default_security_group_id, null)
 }
 
 output "default_vpc_default_network_acl_id" {
-  description = "Default NACL ID of the Default VPC"
-  value       = try(aws_default_vpc.this[0].default_network_acl_id, "")
+  description = "Default NACL ID of the Default VPC, or null when not created"
+  value       = try(aws_default_vpc.this[0].default_network_acl_id, null)
 }
 
 output "default_vpc_default_route_table_id" {
-  description = "Default route table ID of the default VPC"
-  value       = try(aws_default_vpc.this[0].default_route_table_id, "")
+  description = "Default route table ID of the default VPC, or null when not created"
+  value       = try(aws_default_vpc.this[0].default_route_table_id, null)
 }
 
 output "public_route_table_ids" {
@@ -139,13 +139,11 @@ output "private_route_table_ids" {
 }
 
 output "database_subnet_group" {
-  description = "ID of database subnet group"
-  # tflint-ignore: terraform_deprecated_index # Fixed in #12 PR 2.
-  value = concat(aws_db_subnet_group.database.*.id, [""])[0]
+  description = "ID of database subnet group, or null when not created"
+  value       = try(aws_db_subnet_group.database[0].id, null)
 }
 
 output "database_subnet_group_name" {
-  description = "Name of database subnet group"
-  # tflint-ignore: terraform_deprecated_index # Fixed in #12 PR 2.
-  value = concat(aws_db_subnet_group.database.*.name, [""])[0]
+  description = "Name of database subnet group, or null when not created"
+  value       = try(aws_db_subnet_group.database[0].name, null)
 }
