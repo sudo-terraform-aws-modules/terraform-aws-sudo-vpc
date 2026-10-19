@@ -8,10 +8,12 @@ A Terraform module for an Amazon VPC, aligned with [sudo-terraform-module-templa
 
 ## Module specifics
 
-- Version floors are Terraform `>= 1.3.0` and AWS provider `>= 6.0`. They were raised from 0.13 and `>= 3.67` in #9, which is unreleased and breaking.
+- Version floors are Terraform `>= 1.3.0` and AWS provider `>= 6.0`, with no upper bound. They were raised from 0.13 and `>= 3.67` in #9. Raising either again is a breaking change.
 - With `cidr` left at `0.0.0.0/0` the module uses `172.31.0.0/16` and carves the subnets itself. Changing `cidr` or the subnet lists replaces subnets.
 - Checkov skips in `checkov.yaml` each link the issue that owns the fix (#11, #13). Remove a skip in the same PR that fixes its finding. Do not add a skip without a linked issue or a documented false positive.
 - `tflint-ignore` comments link an issue in the same way and are removed when that issue lands.
+- Known bugs are tracked in #10 (ignored subnet inputs) and #11 (unsafe defaults). Add a unit test with every fix, and add the feature to `examples/complete` when it is consumer-facing.
+- Unit tests in `tests/unit.tftest.hcl` use a mock provider and pin current, correct behaviour. Mock providers need Terraform 1.7+, so `make test` and the CI job use a newer Terraform than the module floor. Generated mock values are random strings, so `mock_resource` defaults supply real-looking ARNs for runs with `command = apply`. Add a test with every behaviour change.
 
 ## Git workflow (non-negotiable)
 
@@ -28,6 +30,7 @@ make lint       # tflint --config=.tflint.hcl
 make checkov    # checkov security scan
 make validate   # terraform init -backend=false && terraform validate
 make docs       # regenerate README terraform-docs section (do not hand-edit it)
+make test       # unit tests against a mock provider (Terraform 1.7+)
 make pre-commit # all pre-commit hooks against all files
 ```
 
@@ -37,9 +40,9 @@ The README's Requirements/Providers/Inputs/Outputs tables between the `BEGIN_TF_
 
 1. Branch from `main`.
 2. Make the change; update or add `examples/` when the module API changes.
-3. `make fmt lint checkov` clean, `make docs` regenerated, `CHANGELOG.md` updated under `[Unreleased]`.
+3. `make fmt lint checkov test` clean, `make docs` regenerated, `CHANGELOG.md` updated under `[Unreleased]`.
 4. Conventional commit message.
-5. Open a PR; CI runs pre-commit and checkov and must pass.
+5. Open a PR; CI runs pre-commit, checkov and the unit tests, and all must pass.
 
 ## Terraform conventions
 
