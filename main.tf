@@ -7,18 +7,13 @@ locals {
     length(local.public_subnets),
     length(local.private_subnets),
   )
-  nat_gateway_count  = local.single_nat_gateway ? 1 : var.one_nat_gateway_per_az ? length(local.public_subnets) : local.max_subnet_length
+  nat_gateway_count  = local.single_nat_gateway ? 1 : var.one_nat_gateway_per_az ? length(local.public_subnets) : local.actual_subnet_length
   single_nat_gateway = var.one_nat_gateway_per_az ? false : var.single_nat_gateway
   # Use `local.vpc_id` to give a hint to Terraform that subnets should be deleted before secondary CIDR blocks can be free!
   vpc_id                      = try(aws_vpc_ipv4_cidr_block_association.this[0].vpc_id, aws_vpc.this[0].id, "")
-  name                        = var.name == "sudo-vpc" ? "sudo-vpc-${random_string.random.result}" : var.name
-  default_security_group_name = coalesce(var.default_security_group_name, "${local.name}-default-security-group")
+  default_security_group_name = coalesce(var.default_security_group_name, "${var.name}-default-security-group")
   cidr                        = var.cidr == "0.0.0.0/0" ? "172.31.0.0/16" : var.cidr
   create_vpc                  = var.create_vpc
-  # tflint-ignore: terraform_unused_declarations # Removed in #12 PR 3.
-  cidr_prefix_match = regexall("/([0-9]{2})", local.cidr)
-  #cidr_prefix                 = length(local.cidr_prefix_match) > 0 ? tonumber(local.cidr_prefix_match[0][0]) : 16
-  #validate_cidr_prefix        = local.max_subnet_length == 0 && var.cidr != "0.0.0.0/0" && local.cidr_prefix > 20 ? tobool("Please provide subnet addressing for VPC greater than /20 prefix") : true
 
   azs     = length(var.azs) > 0 ? var.azs : slice(data.aws_availability_zones.azs.zone_ids, 0, length(local.public_subnets))
   subnets = [for cidr_block in cidrsubnets(local.cidr, 4, 4, 4, 4) : cidrsubnets(cidr_block, 4, 4, 4)]
@@ -35,7 +30,7 @@ locals {
 
   flow_log_destination_arn                  = local.create_flow_log_cloudwatch_log_group ? try(aws_cloudwatch_log_group.flow_log[0].arn, null) : var.flow_log_destination_arn
   flow_log_iam_role_arn                     = var.flow_log_destination_type != "s3" && local.create_flow_log_cloudwatch_iam_role ? try(aws_iam_role.vpc_flow_log_cloudwatch[0].arn, null) : var.flow_log_cloudwatch_iam_role_arn
-  flow_log_cloudwatch_log_group_name_suffix = var.flow_log_cloudwatch_log_group_name_suffix == "" ? local.vpc_id : var.flow_log_cloudwatch_log_group_name_suffix
+  flow_log_cloudwatch_log_group_name_suffix = var.flow_log_cloudwatch_log_group_name_suffix == null ? local.vpc_id : var.flow_log_cloudwatch_log_group_name_suffix
 }
 
 data "aws_availability_zones" "azs" {
@@ -43,12 +38,6 @@ data "aws_availability_zones" "azs" {
     name   = "opt-in-status"
     values = ["opt-in-not-required"]
   }
-}
-
-resource "random_string" "random" {
-  length  = 6
-  special = false
-  upper   = false
 }
 
 ################################################################################
@@ -237,7 +226,7 @@ resource "aws_route" "private_nat_gateway" {
 
 
 ################################################################################
-# Publiс routes
+# Public routes
 ################################################################################
 
 resource "aws_route_table" "public" {
@@ -277,8 +266,12 @@ resource "aws_route" "public_internet_gateway_ipv6" {
 # There are as many routing tables as the number of NAT gateways
 ################################################################################
 
+locals {
+  private_route_table_count = local.create_vpc && local.actual_subnet_length > 0 ? local.nat_gateway_count : 0
+}
+
 resource "aws_route_table" "private" {
-  count = local.create_vpc && local.actual_subnet_length > 0 ? local.nat_gateway_count : 0
+  count = local.private_route_table_count
 
   vpc_id = local.vpc_id
 
@@ -302,30 +295,30 @@ resource "aws_default_security_group" "this" {
   dynamic "ingress" {
     for_each = var.default_security_group_ingress
     content {
-      self             = lookup(ingress.value, "self", null)
-      cidr_blocks      = compact(split(",", lookup(ingress.value, "cidr_blocks", "")))
-      ipv6_cidr_blocks = compact(split(",", lookup(ingress.value, "ipv6_cidr_blocks", "")))
-      prefix_list_ids  = compact(split(",", lookup(ingress.value, "prefix_list_ids", "")))
-      security_groups  = compact(split(",", lookup(ingress.value, "security_groups", "")))
-      description      = lookup(ingress.value, "description", null)
-      from_port        = lookup(ingress.value, "from_port", 0)
-      to_port          = lookup(ingress.value, "to_port", 0)
-      protocol         = lookup(ingress.value, "protocol", "-1")
+      self             = ingress.value.self
+      cidr_blocks      = ingress.value.cidr_blocks
+      ipv6_cidr_blocks = ingress.value.ipv6_cidr_blocks
+      prefix_list_ids  = ingress.value.prefix_list_ids
+      security_groups  = ingress.value.security_groups
+      description      = ingress.value.description
+      from_port        = ingress.value.from_port
+      to_port          = ingress.value.to_port
+      protocol         = ingress.value.protocol
     }
   }
 
   dynamic "egress" {
     for_each = var.default_security_group_egress
     content {
-      self             = lookup(egress.value, "self", null)
-      cidr_blocks      = compact(split(",", lookup(egress.value, "cidr_blocks", "")))
-      ipv6_cidr_blocks = compact(split(",", lookup(egress.value, "ipv6_cidr_blocks", "")))
-      prefix_list_ids  = compact(split(",", lookup(egress.value, "prefix_list_ids", "")))
-      security_groups  = compact(split(",", lookup(egress.value, "security_groups", "")))
-      description      = lookup(egress.value, "description", null)
-      from_port        = lookup(egress.value, "from_port", 0)
-      to_port          = lookup(egress.value, "to_port", 0)
-      protocol         = lookup(egress.value, "protocol", "-1")
+      self             = egress.value.self
+      cidr_blocks      = egress.value.cidr_blocks
+      ipv6_cidr_blocks = egress.value.ipv6_cidr_blocks
+      prefix_list_ids  = egress.value.prefix_list_ids
+      security_groups  = egress.value.security_groups
+      description      = egress.value.description
+      from_port        = egress.value.from_port
+      to_port          = egress.value.to_port
+      protocol         = egress.value.protocol
     }
   }
 
@@ -346,7 +339,7 @@ resource "aws_route_table_association" "private" {
   subnet_id = element(aws_subnet.private[*].id, count.index)
   route_table_id = element(
     aws_route_table.private[*].id,
-    var.single_nat_gateway ? 0 : count.index,
+    local.single_nat_gateway ? 0 : count.index,
   )
 }
 
@@ -364,9 +357,9 @@ resource "aws_route_table_association" "public" {
 resource "aws_customer_gateway" "this" {
   for_each = var.customer_gateways
 
-  bgp_asn     = each.value["bgp_asn"]
-  ip_address  = each.value["ip_address"]
-  device_name = lookup(each.value, "device_name", null)
+  bgp_asn     = each.value.bgp_asn
+  ip_address  = each.value.ip_address
+  device_name = each.value.device_name
   type        = "ipsec.1"
 
   tags = merge(
@@ -395,36 +388,32 @@ resource "aws_vpn_gateway" "this" {
 }
 
 resource "aws_vpn_gateway_attachment" "this" {
-  count = var.vpn_gateway_id != "" ? 1 : 0
+  count = local.create_vpc && var.vpn_gateway_id != null ? 1 : 0
 
   vpc_id         = local.vpc_id
   vpn_gateway_id = var.vpn_gateway_id
 }
 
-resource "aws_vpn_gateway_route_propagation" "public" {
-  count = local.create_vpc && var.propagate_public_route_tables_vgw && (var.enable_vpn_gateway || var.vpn_gateway_id != "") ? 1 : 0
-
-  route_table_id = element(aws_route_table.public[*].id, count.index)
-  vpn_gateway_id = element(
-    concat(
-      aws_vpn_gateway.this[*].id,
-      aws_vpn_gateway_attachment.this[*].vpn_gateway_id,
-    ),
-    count.index,
-  )
+locals {
+  propagate_vgw = local.create_vpc && (var.enable_vpn_gateway || var.vpn_gateway_id != null)
+  # The module's own VPN gateway wins over an attached one, as before.
+  propagation_vpn_gateway_id = try(aws_vpn_gateway.this[0].id, aws_vpn_gateway_attachment.this[0].vpn_gateway_id, null)
 }
 
-resource "aws_vpn_gateway_route_propagation" "private" {
-  count = local.create_vpc && var.propagate_private_route_tables_vgw && (var.enable_vpn_gateway || var.vpn_gateway_id != "") ? length(var.private_subnets) : 0
+resource "aws_vpn_gateway_route_propagation" "public" {
+  count = local.propagate_vgw && var.propagate_public_route_tables_vgw && length(local.public_subnets) > 0 ? 1 : 0
 
-  route_table_id = element(aws_route_table.private[*].id, count.index)
-  vpn_gateway_id = element(
-    concat(
-      aws_vpn_gateway.this[*].id,
-      aws_vpn_gateway_attachment.this[*].vpn_gateway_id,
-    ),
-    count.index,
-  )
+  route_table_id = aws_route_table.public[0].id
+  vpn_gateway_id = local.propagation_vpn_gateway_id
+}
+
+# One propagation per private route table. There is one private route table per NAT gateway,
+# not per private subnet, so counting subnets created duplicates.
+resource "aws_vpn_gateway_route_propagation" "private" {
+  count = local.propagate_vgw && var.propagate_private_route_tables_vgw ? local.private_route_table_count : 0
+
+  route_table_id = aws_route_table.private[count.index].id
+  vpn_gateway_id = local.propagation_vpn_gateway_id
 }
 
 ################################################################################
@@ -531,11 +520,9 @@ resource "aws_route" "database_internet_gateway" {
 resource "aws_route" "database_nat_gateway" {
   count = var.create_vpc && var.create_database_subnet_route_table && length(var.database_subnets) > 0 && false == var.create_database_internet_gateway_route && var.create_database_nat_gateway_route && var.enable_nat_gateway ? var.single_nat_gateway ? 1 : length(var.database_subnets) : 0
 
-  # tflint-ignore: terraform_deprecated_index # Fixed in #12 PR 2.
-  route_table_id         = element(aws_route_table.database.*.id, count.index)
+  route_table_id         = element(aws_route_table.database[*].id, count.index)
   destination_cidr_block = "0.0.0.0/0"
-  # tflint-ignore: terraform_deprecated_index # Fixed in #12 PR 2.
-  nat_gateway_id = element(aws_nat_gateway.this.*.id, count.index)
+  nat_gateway_id         = element(aws_nat_gateway.this[*].id, count.index)
 
   timeouts {
     create = "5m"
