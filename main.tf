@@ -394,30 +394,26 @@ resource "aws_vpn_gateway_attachment" "this" {
   vpn_gateway_id = var.vpn_gateway_id
 }
 
-resource "aws_vpn_gateway_route_propagation" "public" {
-  count = local.create_vpc && var.propagate_public_route_tables_vgw && (var.enable_vpn_gateway || var.vpn_gateway_id != null) ? 1 : 0
-
-  route_table_id = element(aws_route_table.public[*].id, count.index)
-  vpn_gateway_id = element(
-    concat(
-      aws_vpn_gateway.this[*].id,
-      aws_vpn_gateway_attachment.this[*].vpn_gateway_id,
-    ),
-    count.index,
-  )
+locals {
+  propagate_vgw = local.create_vpc && (var.enable_vpn_gateway || var.vpn_gateway_id != null)
+  # The module's own VPN gateway wins over an attached one, as before.
+  propagation_vpn_gateway_id = try(aws_vpn_gateway.this[0].id, aws_vpn_gateway_attachment.this[0].vpn_gateway_id, null)
 }
 
-resource "aws_vpn_gateway_route_propagation" "private" {
-  count = local.create_vpc && var.propagate_private_route_tables_vgw && (var.enable_vpn_gateway || var.vpn_gateway_id != null) ? length(var.private_subnets) : 0
+resource "aws_vpn_gateway_route_propagation" "public" {
+  count = local.propagate_vgw && var.propagate_public_route_tables_vgw && length(local.public_subnets) > 0 ? 1 : 0
 
-  route_table_id = element(aws_route_table.private[*].id, count.index)
-  vpn_gateway_id = element(
-    concat(
-      aws_vpn_gateway.this[*].id,
-      aws_vpn_gateway_attachment.this[*].vpn_gateway_id,
-    ),
-    count.index,
-  )
+  route_table_id = aws_route_table.public[0].id
+  vpn_gateway_id = local.propagation_vpn_gateway_id
+}
+
+# One propagation per private route table. There is one private route table per NAT gateway,
+# not per private subnet, so counting subnets created duplicates.
+resource "aws_vpn_gateway_route_propagation" "private" {
+  count = local.propagate_vgw && var.propagate_private_route_tables_vgw ? local.private_route_table_count : 0
+
+  route_table_id = aws_route_table.private[count.index].id
+  vpn_gateway_id = local.propagation_vpn_gateway_id
 }
 
 ################################################################################

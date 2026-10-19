@@ -349,3 +349,58 @@ run "nat_gateway_per_subnet_with_carved_subnets" {
     error_message = "single_nat_gateway = false must give one NAT gateway and route table per private subnet when the module carves the subnets."
   }
 }
+
+run "vgw_propagation_single_nat_given_subnets" {
+  command = plan
+
+  variables {
+    cidr                               = "10.0.0.0/16"
+    public_subnets                     = ["10.0.0.0/24", "10.0.1.0/24", "10.0.2.0/24"]
+    private_subnets                    = ["10.0.16.0/24", "10.0.17.0/24", "10.0.18.0/24"]
+    enable_nat_gateway                 = true
+    enable_vpn_gateway                 = true
+    propagate_private_route_tables_vgw = true
+  }
+
+  assert {
+    condition     = length(aws_route_table.private) == 1 && length(aws_vpn_gateway_route_propagation.private) == 1
+    error_message = "With one private route table there must be exactly one private VGW propagation, not one per subnet."
+  }
+}
+
+run "vgw_propagation_carved_subnets" {
+  command = plan
+
+  variables {
+    cidr                               = "10.0.0.0/16"
+    enable_vpn_gateway                 = true
+    propagate_private_route_tables_vgw = true
+  }
+
+  assert {
+    condition     = length(aws_vpn_gateway_route_propagation.private) == length(aws_route_table.private) && length(aws_route_table.private) > 0
+    error_message = "Private VGW propagation must also work when the module carves the subnets."
+  }
+}
+
+run "vgw_propagation_one_nat_per_az" {
+  command = apply
+
+  variables {
+    cidr                               = "10.0.0.0/16"
+    enable_nat_gateway                 = true
+    one_nat_gateway_per_az             = true
+    enable_vpn_gateway                 = true
+    propagate_private_route_tables_vgw = true
+  }
+
+  assert {
+    condition     = aws_vpn_gateway_route_propagation.private[*].route_table_id == aws_route_table.private[*].id
+    error_message = "Every private route table must get exactly one VGW propagation."
+  }
+
+  assert {
+    condition     = alltrue([for p in aws_vpn_gateway_route_propagation.private : p.vpn_gateway_id == aws_vpn_gateway.this[0].id])
+    error_message = "Private propagations must use the module's VPN gateway."
+  }
+}
