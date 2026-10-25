@@ -11,9 +11,14 @@ variable "name" {
 }
 
 variable "cidr" {
-  description = "(Optional) The IPv4 CIDR block for the VPC. CIDR can be explicitly set or it can be derived from IPAM using `ipv4_netmask_length` & `ipv4_ipam_pool_id`"
+  description = "The IPv4 CIDR block for the VPC, for example 10.0.0.0/16. Required unless the range comes from IPAM (use_ipam_pool, ipv4_ipam_pool_id and ipv4_netmask_length). Pick a range that does not overlap networks you peer or connect with; the AWS default VPC uses 172.31.0.0/16."
   type        = string
-  default     = "0.0.0.0/0"
+  default     = null
+
+  validation {
+    condition     = var.cidr == null || try(cidrnetmask(var.cidr) != "0.0.0.0", false)
+    error_message = "cidr must be an IPv4 CIDR block such as 10.0.0.0/16. 0.0.0.0/0 no longer means \"use 172.31.0.0/16\"; set the range explicitly."
+  }
 }
 
 variable "use_ipam_pool" {
