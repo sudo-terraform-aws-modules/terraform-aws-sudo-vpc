@@ -7,7 +7,7 @@
 
 Terraform module that creates an Amazon VPC and the network around it: public, private and database subnets across availability zones, an internet gateway, optional NAT gateways, route tables, a database subnet group and VPC flow logs. It can also create a VPN gateway and customer gateways, and it takes over the VPC's default security group and removes its rules.
 
-With no inputs the module creates a `172.31.0.0/16` VPC with three public, three private and three database `/24` subnets in the first three availability zones of the region. There is no NAT gateway, so the private and database subnets have no route to the internet. Public subnets give instances a public IP on launch. Flow logs capture rejected traffic into a CloudWatch log group kept for 365 days, the default security group has no rules, the default route table has no routes, and the default network ACL allows all traffic. These defaults suit a sandbox. For a shared or long-lived network, set `cidr` to a range that does not overlap your other networks, size the subnets yourself and turn on NAT gateways. Safer defaults are tracked in #11.
+Given only `name` and `cidr`, the module carves three public, three private and three database subnets, one of each per availability zone in up to three zones. With a `/16` `cidr` each subnet is a `/24`. There is no NAT gateway, so the private and database subnets have no route to the internet. Public subnets do not give instances a public IP on launch. Flow logs capture rejected traffic into a CloudWatch log group kept for 365 days, the default security group has no rules, the default route table has no routes, and the default network ACL allows all traffic. These defaults suit a sandbox or a first environment. For production, size the subnets yourself, turn on NAT gateways (one per AZ if an AZ outage must not cut egress) and consider `flow_log_traffic_type = "ALL"` for incident investigation.
 
 ## Usage
 
@@ -39,7 +39,7 @@ See [examples/minimal](examples/minimal) and [examples/complete](examples/comple
 
 ## Things to know before you apply
 
-**Settings fixed at creation.** Changing `cidr` replaces the VPC and everything in it. Changing a subnet's CIDR or availability zone replaces that subnet, which fails while network interfaces are still attached to it. Subnets are created with `count`, so removing or reordering entries in a subnet list or in `azs` replaces every subnet after that position. Pass `cidr` whenever you pass subnet lists, and pass subnet lists when you use IPAM; the plan fails otherwise. Automatic subnet carving needs a `/20` or larger VPC.
+**Settings fixed at creation.** Changing `cidr` replaces the VPC and everything in it. Changing a subnet's CIDR or availability zone replaces that subnet, which fails while network interfaces are still attached to it. Subnets are created with `count`, so removing or reordering entries in a subnet list or in `azs` replaces every subnet after that position. With IPAM, pass the subnet lists yourself, because the range is only known after apply; the plan fails otherwise. Automatic subnet carving needs a `/20` or larger VPC.
 
 **Deletion protection.** VPCs have no deletion protection. `terraform destroy` removes the VPC with all its subnets, gateways and route tables. AWS refuses to delete a subnet while other resources, such as load balancers, RDS instances or Lambda functions, still have network interfaces in it, so remove those first.
 
@@ -51,7 +51,7 @@ See [examples/minimal](examples/minimal) and [examples/complete](examples/comple
 
 **Permissions the caller needs.** Applying needs EC2 permissions for VPCs, subnets, route tables, internet and NAT gateways, Elastic IPs, network ACLs, security groups and, if used, VPN and customer gateways. The default flow logs also need CloudWatch Logs permissions to create the log group and set its retention, and IAM permissions to create the flow log role and policy, attach them and pass the role (`iam:PassRole`). To leave IAM out, send flow logs to S3, or pass `flow_log_cloudwatch_iam_role_arn` with `create_flow_log_cloudwatch_iam_role = false`. `vpc_flow_log_permissions_boundary` sets a permissions boundary on the role the module creates.
 
-**Known issues.** Safer defaults are tracked in #11. The database subnet group is named after `name`, so two VPCs with the same `name` in one region collide.
+**Known issues.** Private subnets get no IPv6 route to the internet yet (#11). The database subnet group is named after `name`, so use a `name` that is unique in the account and region.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
