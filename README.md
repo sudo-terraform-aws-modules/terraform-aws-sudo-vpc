@@ -51,7 +51,7 @@ See [examples/minimal](examples/minimal) and [examples/complete](examples/comple
 
 **Permissions the caller needs.** Applying needs EC2 permissions for VPCs, subnets, route tables, internet and NAT gateways, Elastic IPs, network ACLs, security groups and, if used, VPN and customer gateways. The default flow logs also need CloudWatch Logs permissions to create the log group and set its retention, and IAM permissions to create the flow log role and policy, attach them and pass the role (`iam:PassRole`). To leave IAM out, send flow logs to S3, or pass `flow_log_cloudwatch_iam_role_arn` with `create_flow_log_cloudwatch_iam_role = false`. `vpc_flow_log_permissions_boundary` sets a permissions boundary on the role the module creates.
 
-**Known issues.** Private subnets get no IPv6 route to the internet yet (#11). The database subnet group is named after `name`, so use a `name` that is unique in the account and region.
+**Naming.** The database subnet group is named after `name`, so use a `name` that is unique in the account and region.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
