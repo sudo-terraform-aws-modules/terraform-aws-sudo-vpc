@@ -39,6 +39,10 @@ All notable changes to this module are documented here. The format follows [Keep
 - `database_dedicated_network_acl = true` no longer denies all traffic. The NACL was created with no rules, which made every database in those subnets unreachable. It now gets the rules from `database_inbound_acl_rules` and `database_outbound_acl_rules`, which allow all traffic by default. Existing VPCs with this setting get the allow-all rules on the next apply (#10).
 - With `use_ipam_pool = true`, the given `public_subnets`, `private_subnets` and `database_subnets` are now used. Before, they were ignored unless `cidr` was also set (#10).
 
+### Security
+
+- The VPC flow log IAM policy is scoped to the flow log group, instead of `resources = ["*"]`: stream writes are limited to that group, and `DescribeLogGroups` to the account and region. The role trust policy now requires `aws:SourceAccount` to be this account and `aws:SourceArn` to be one of its flow logs, which blocks confused deputy use of the role. Existing roles and policies are updated in place on the next apply (#11).
+
 <!--
 Group entries under Added, Changed, Deprecated, Removed, Fixed or Security, and drop the
 headings you do not need. On release, rename this section to the version and date and add a

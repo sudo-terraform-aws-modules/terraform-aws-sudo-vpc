@@ -47,6 +47,24 @@ resource "aws_iam_role" "vpc_flow_log_cloudwatch" {
   tags = merge(var.tags, var.vpc_flow_log_tags)
 }
 
+data "aws_caller_identity" "current" {
+  count = local.create_flow_log_cloudwatch_iam_role ? 1 : 0
+}
+
+data "aws_partition" "current" {
+  count = local.create_flow_log_cloudwatch_iam_role ? 1 : 0
+}
+
+data "aws_region" "current" {
+  count = local.create_flow_log_cloudwatch_iam_role ? 1 : 0
+}
+
+locals {
+  flow_log_account_id = try(data.aws_caller_identity.current[0].account_id, null)
+  flow_log_partition  = try(data.aws_partition.current[0].partition, null)
+  flow_log_region     = try(data.aws_region.current[0].region, null)
+}
+
 data "aws_iam_policy_document" "flow_log_cloudwatch_assume_role" {
   count = local.create_flow_log_cloudwatch_iam_role ? 1 : 0
 
@@ -61,6 +79,19 @@ data "aws_iam_policy_document" "flow_log_cloudwatch_assume_role" {
     effect = "Allow"
 
     actions = ["sts:AssumeRole"]
+
+    # Only flow logs in this account may assume the role (confused deputy protection).
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [local.flow_log_account_id]
+    }
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = ["arn:${local.flow_log_partition}:ec2:${local.flow_log_region}:${local.flow_log_account_id}:vpc-flow-log/*"]
+    }
   }
 }
 
@@ -90,10 +121,23 @@ data "aws_iam_policy_document" "vpc_flow_log_cloudwatch" {
     actions = [
       "logs:CreateLogStream",
       "logs:PutLogEvents",
-      "logs:DescribeLogGroups",
       "logs:DescribeLogStreams",
     ]
 
-    resources = ["*"]
+    resources = [
+      local.flow_log_destination_arn,
+      "${local.flow_log_destination_arn}:*",
+    ]
+  }
+
+  # DescribeLogGroups lists groups rather than acting on one, so scope it to this account and region.
+  statement {
+    sid = "AWSVPCFlowLogsDescribeLogGroups"
+
+    effect = "Allow"
+
+    actions = ["logs:DescribeLogGroups"]
+
+    resources = ["arn:${local.flow_log_partition}:logs:${local.flow_log_region}:${local.flow_log_account_id}:log-group:*"]
   }
 }
