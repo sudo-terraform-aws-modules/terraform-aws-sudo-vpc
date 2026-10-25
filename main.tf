@@ -171,7 +171,7 @@ resource "aws_internet_gateway" "this" {
 }
 
 resource "aws_egress_only_internet_gateway" "this" {
-  count = var.create_vpc && var.create_egress_only_igw && var.enable_ipv6 && local.max_subnet_length > 0 ? 1 : 0
+  count = local.create_vpc && var.create_egress_only_igw && var.enable_ipv6 && local.actual_subnet_length > 0 ? 1 : 0
 
   vpc_id = local.vpc_id
 
@@ -312,6 +312,18 @@ resource "aws_route_table" "private" {
     var.tags,
     var.private_route_table_tags,
   )
+}
+
+resource "aws_route" "private_ipv6_egress" {
+  count = length(aws_egress_only_internet_gateway.this) > 0 ? local.private_route_table_count : 0
+
+  route_table_id              = aws_route_table.private[count.index].id
+  destination_ipv6_cidr_block = "::/0"
+  egress_only_gateway_id      = aws_egress_only_internet_gateway.this[0].id
+
+  timeouts {
+    create = "5m"
+  }
 }
 
 resource "aws_default_security_group" "this" {
