@@ -7,7 +7,7 @@
 
 Terraform module that creates an Amazon VPC and the network around it: public, private and database subnets across availability zones, an internet gateway, optional NAT gateways, route tables, a database subnet group and VPC flow logs. It can also create a VPN gateway and customer gateways, and it takes over the VPC's default security group and removes its rules.
 
-With no inputs the module creates a `172.31.0.0/16` VPC with three public, three private and three database `/24` subnets in the first three availability zones of the region. There is no NAT gateway, so the private and database subnets have no route to the internet. Public subnets give instances a public IP on launch. Flow logs capture rejected traffic into a CloudWatch log group kept for 90 days, and the default security group has no rules. These defaults suit a sandbox. For a shared or long-lived network, set `cidr` to a range that does not overlap your other networks, size the subnets yourself and turn on NAT gateways. Safer defaults are tracked in #11.
+With no inputs the module creates a `172.31.0.0/16` VPC with three public, three private and three database `/24` subnets in the first three availability zones of the region. There is no NAT gateway, so the private and database subnets have no route to the internet. Public subnets give instances a public IP on launch. Flow logs capture rejected traffic into a CloudWatch log group kept for 365 days, and the default security group has no rules. These defaults suit a sandbox. For a shared or long-lived network, set `cidr` to a range that does not overlap your other networks, size the subnets yourself and turn on NAT gateways. Safer defaults are tracked in #11.
 
 ## Usage
 
