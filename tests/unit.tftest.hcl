@@ -76,8 +76,8 @@ run "defaults" {
   }
 
   assert {
-    condition     = aws_flow_log.default[0].traffic_type == "REJECT" && aws_cloudwatch_log_group.flow_log[0].retention_in_days == 90
-    error_message = "Flow logs must be on by default, capturing REJECT traffic with 90-day retention."
+    condition     = aws_flow_log.default[0].traffic_type == "REJECT" && aws_cloudwatch_log_group.flow_log[0].retention_in_days == 365
+    error_message = "Flow logs must be on by default, capturing REJECT traffic with 365-day retention."
   }
 
   assert {
