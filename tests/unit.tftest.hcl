@@ -667,3 +667,78 @@ run "flow_log_trust_policy_conditions" {
     error_message = "The flow log role trust policy must pin aws:SourceArn to this account's flow logs."
   }
 }
+
+# Issue #11: default route table and default network ACL.
+
+run "manages_default_route_table_and_nacl" {
+  command = plan
+
+  assert {
+    condition     = length(aws_default_route_table.this) == 1 && length(aws_default_route_table.this[0].route) == 0
+    error_message = "The default route table must be managed with no routes, so subnets left on it have no path out."
+  }
+
+  assert {
+    condition     = aws_default_route_table.this[0].tags["Name"] == "unit-test-default"
+    error_message = "The default route table must be tagged after the VPC."
+  }
+
+  assert {
+    condition     = length(aws_default_network_acl.this) == 1 && length(aws_default_network_acl.this[0].ingress) == 2 && length(aws_default_network_acl.this[0].egress) == 2
+    error_message = "The default NACL must be adopted with explicit IPv4 and IPv6 rules in each direction."
+  }
+
+  assert {
+    condition     = alltrue([for r in aws_default_network_acl.this[0].ingress : r.action == "allow" && r.protocol == "-1"])
+    error_message = "Default NACL rules must allow all traffic by default, because every public and private subnet uses it."
+  }
+
+  assert {
+    condition     = aws_default_network_acl.this[0].tags["Name"] == "unit-test-default"
+    error_message = "The default NACL must be tagged after the VPC."
+  }
+}
+
+run "default_route_table_and_nacl_can_be_left_alone" {
+  command = plan
+
+  variables {
+    manage_default_route_table = false
+    manage_default_network_acl = false
+  }
+
+  assert {
+    condition     = length(aws_default_route_table.this) == 0 && length(aws_default_network_acl.this) == 0
+    error_message = "manage_default_route_table and manage_default_network_acl = false must leave both alone."
+  }
+}
+
+run "default_nacl_custom_rules" {
+  command = plan
+
+  variables {
+    cidr = "10.0.0.0/16"
+    default_network_acl_ingress = [
+      { rule_no = 100, action = "allow", protocol = "-1", cidr_block = "10.0.0.0/16" },
+    ]
+    default_network_acl_egress = []
+  }
+
+  assert {
+    condition     = one(aws_default_network_acl.this[0].ingress).cidr_block == "10.0.0.0/16" && length(aws_default_network_acl.this[0].egress) == 0
+    error_message = "Custom default NACL rules must replace the defaults; an empty list means no rules."
+  }
+}
+
+run "no_default_resources_without_vpc" {
+  command = plan
+
+  variables {
+    create_vpc = false
+  }
+
+  assert {
+    condition     = length(aws_default_route_table.this) == 0 && length(aws_default_network_acl.this) == 0
+    error_message = "create_vpc = false must not manage the default route table or NACL."
+  }
+}
