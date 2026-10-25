@@ -122,9 +122,9 @@ variable "azs" {
 }
 
 variable "map_public_ip_on_launch" {
-  description = "Should be false if you do not want to auto-assign public IP on launch"
+  description = "(optional) Give instances launched in public subnets a public IPv4 address. Leave it false and attach Elastic IPs or use a load balancer where public access is needed. Default: false"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "public_subnet_assign_ipv6_address_on_creation" {

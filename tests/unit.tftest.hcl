@@ -778,3 +778,12 @@ run "rejects_blank_name" {
 
   expect_failures = [var.name]
 }
+
+run "public_subnets_assign_no_public_ip_by_default" {
+  command = plan
+
+  assert {
+    condition     = alltrue([for s in aws_subnet.public : s.map_public_ip_on_launch == false])
+    error_message = "Public subnets must not assign public IPs on launch by default."
+  }
+}
