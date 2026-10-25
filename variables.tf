@@ -5,9 +5,14 @@ variable "create_vpc" {
 }
 
 variable "name" {
-  description = "Name to be used on all the resources as identifier"
+  description = "Name of the VPC, used in the Name tag of every resource and as the database subnet group name. Use a name that is unique in the account and region, because subnet group names must be."
   type        = string
-  default     = "sudo-vpc"
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.name)) > 0
+    error_message = "name must not be empty."
+  }
 }
 
 variable "cidr" {

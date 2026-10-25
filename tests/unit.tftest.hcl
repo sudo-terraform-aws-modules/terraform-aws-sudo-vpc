@@ -768,3 +768,13 @@ run "rejects_catch_all_cidr" {
 
   expect_failures = [var.cidr]
 }
+
+run "rejects_blank_name" {
+  command = plan
+
+  variables {
+    name = " "
+  }
+
+  expect_failures = [var.name]
+}
