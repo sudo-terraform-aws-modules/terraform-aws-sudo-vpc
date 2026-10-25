@@ -15,11 +15,15 @@ locals {
   cidr                        = var.cidr
   create_vpc                  = var.create_vpc
 
-  azs = length(var.azs) > 0 ? var.azs : slice(data.aws_availability_zones.azs.zone_ids, 0, length(local.public_subnets))
+  available_az_ids = data.aws_availability_zones.azs.zone_ids
+  azs              = length(var.azs) > 0 ? var.azs : slice(local.available_az_ids, 0, min(length(local.available_az_ids), length(local.public_subnets)))
+
   # Carving splits cidr into four blocks and each block into three subnets, 8 bits in all.
   # A /20 gives /28 subnets, the smallest AWS allows; smaller VPCs are rejected below.
-  carve_prefix = try(tonumber(split("/", local.cidr)[1]), null)
-  subnets      = try([for cidr_block in cidrsubnets(local.cidr, 4, 4, 4, 4) : cidrsubnets(cidr_block, 4, 4, 4)], [[], [], []])
+  # One subnet per tier per AZ, up to three: the AZs in var.azs, otherwise the region's.
+  carve_az_count = min(3, length(var.azs) > 0 ? length(var.azs) : length(local.available_az_ids))
+  carve_prefix   = try(tonumber(split("/", local.cidr)[1]), null)
+  subnets        = try([for cidr_block in cidrsubnets(local.cidr, 4, 4, 4, 4) : slice(cidrsubnets(cidr_block, 4, 4, 4), 0, local.carve_az_count)], [[], [], []])
 
   # Given subnet lists are always used; without them the module carves subnets from cidr.
   use_given_subnets = local.max_subnet_length > 0

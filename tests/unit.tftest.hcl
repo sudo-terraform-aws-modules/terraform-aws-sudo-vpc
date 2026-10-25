@@ -787,3 +787,38 @@ run "public_subnets_assign_no_public_ip_by_default" {
     error_message = "Public subnets must not assign public IPs on launch by default."
   }
 }
+
+run "two_az_region" {
+  command = plan
+
+  override_data {
+    target = data.aws_availability_zones.azs
+    values = {
+      names    = ["ap-test-1a", "ap-test-1b"]
+      zone_ids = ["apt1-az1", "apt1-az2"]
+    }
+  }
+
+  assert {
+    condition     = length(aws_subnet.public) == 2 && length(aws_subnet.private) == 2 && length(aws_subnet.database) == 2
+    error_message = "In a 2-AZ region the module must carve one subnet per tier per AZ, not fail."
+  }
+
+  assert {
+    condition     = aws_subnet.private[*].availability_zone_id == ["apt1-az1", "apt1-az2"]
+    error_message = "Carved subnets must spread across the region's AZs."
+  }
+}
+
+run "carves_one_subnet_per_given_az" {
+  command = plan
+
+  variables {
+    azs = ["eu-west-1a", "eu-west-1b"]
+  }
+
+  assert {
+    condition     = length(aws_subnet.public) == 2 && aws_subnet.public[*].availability_zone == ["eu-west-1a", "eu-west-1b"]
+    error_message = "With two AZs given, the module must carve two subnets per tier, one in each."
+  }
+}

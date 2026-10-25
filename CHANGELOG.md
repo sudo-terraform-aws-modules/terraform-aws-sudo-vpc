@@ -43,6 +43,7 @@ All notable changes to this module are documented here. The format follows [Keep
 - Database route tables and routes now follow the subnets the module actually creates: database subnets carved from `cidr` get a route table, per-AZ database route tables no longer fail the plan when `azs` is not set, and `one_nat_gateway_per_az` gives each database subnet the route table and NAT gateway of its AZ. With `one_nat_gateway_per_az = true`, existing VPCs gain the second and third database route tables on the next apply (#10).
 - `database_dedicated_network_acl = true` no longer denies all traffic. The NACL was created with no rules, which made every database in those subnets unreachable. It now gets the rules from `database_inbound_acl_rules` and `database_outbound_acl_rules`, which allow all traffic by default. Existing VPCs with this setting get the allow-all rules on the next apply (#10).
 - With `use_ipam_pool = true`, the given `public_subnets`, `private_subnets` and `database_subnets` are now used. Before, they were ignored unless `cidr` was also set (#10).
+- Automatic subnet carving works in regions with two availability zones. It carves one subnet per tier per AZ, up to three, using the AZs in `azs` when given. Before, it always carved three per tier and failed the plan in a 2-AZ region (#11).
 
 ### Security
 
