@@ -15,13 +15,12 @@ locals {
   cidr                        = var.cidr
   create_vpc                  = var.create_vpc
 
-  available_az_ids = data.aws_availability_zones.azs.zone_ids
-  azs              = length(var.azs) > 0 ? var.azs : slice(local.available_az_ids, 0, min(length(local.available_az_ids), length(local.public_subnets)))
+  azs = var.azs
 
   # Carving splits cidr into four blocks and each block into three subnets, 8 bits in all.
   # A /20 gives /28 subnets, the smallest AWS allows; smaller VPCs are rejected below.
-  # One subnet per tier per AZ, up to three: the AZs in var.azs, otherwise the region's.
-  carve_az_count = min(3, length(var.azs) > 0 ? length(var.azs) : length(local.available_az_ids))
+  # One subnet per tier per AZ in var.azs, up to three.
+  carve_az_count = min(3, length(var.azs))
   carve_prefix   = try(tonumber(split("/", local.cidr)[1]), null)
   subnets        = try([for cidr_block in cidrsubnets(local.cidr, 4, 4, 4, 4) : slice(cidrsubnets(cidr_block, 4, 4, 4), 0, local.carve_az_count)], [[], [], []])
 
@@ -41,13 +40,6 @@ locals {
   flow_log_destination_arn                  = local.create_flow_log_cloudwatch_log_group ? try(aws_cloudwatch_log_group.flow_log[0].arn, null) : var.flow_log_destination_arn
   flow_log_iam_role_arn                     = var.flow_log_destination_type != "s3" && local.create_flow_log_cloudwatch_iam_role ? try(aws_iam_role.vpc_flow_log_cloudwatch[0].arn, null) : var.flow_log_cloudwatch_iam_role_arn
   flow_log_cloudwatch_log_group_name_suffix = var.flow_log_cloudwatch_log_group_name_suffix == null ? local.vpc_id : var.flow_log_cloudwatch_log_group_name_suffix
-}
-
-data "aws_availability_zones" "azs" {
-  filter {
-    name   = "opt-in-status"
-    values = ["opt-in-not-required"]
-  }
 }
 
 ################################################################################

@@ -2,19 +2,11 @@ provider "aws" {
   region = var.region
 }
 
-data "aws_availability_zones" "available" {
-  state = "available"
-
-  filter {
-    name   = "opt-in-status"
-    values = ["opt-in-not-required"]
-  }
-}
-
 locals {
   name = "example-complete"
   cidr = "10.20.0.0/16"
-  azs  = slice(data.aws_availability_zones.available.names, 0, 3)
+  # Listed rather than looked up, so a new AZ in the region never moves subnets.
+  azs = ["${var.region}a", "${var.region}b", "${var.region}c"]
 
   tags = {
     Example = local.name

@@ -2,13 +2,6 @@
 # module itself supports >= 1.3.0. Run with `make test`.
 
 mock_provider "aws" {
-  mock_data "aws_availability_zones" {
-    defaults = {
-      names    = ["eu-west-1a", "eu-west-1b", "eu-west-1c"]
-      zone_ids = ["euw1-az1", "euw1-az2", "euw1-az3"]
-    }
-  }
-
   mock_data "aws_iam_policy_document" {
     defaults = {
       json = "{}"
@@ -62,6 +55,7 @@ mock_provider "aws" {
 variables {
   name = "unit-test"
   cidr = "10.0.0.0/16"
+  azs  = ["eu-west-1a", "eu-west-1b", "eu-west-1c"]
 }
 
 run "defaults" {
@@ -463,7 +457,7 @@ run "database_route_table_single_nat" {
   }
 }
 
-run "database_route_tables_per_az_without_azs" {
+run "database_route_tables_per_az" {
   command = apply
 
   variables {
@@ -476,7 +470,7 @@ run "database_route_tables_per_az_without_azs" {
 
   assert {
     condition     = length(aws_route_table.database) == 3 && aws_route_table_association.database[*].route_table_id == aws_route_table.database[*].id
-    error_message = "With one NAT per AZ each database subnet must get its own route table, also when azs is not set."
+    error_message = "With one NAT per AZ each database subnet must get its own route table."
   }
 
   assert {
@@ -485,8 +479,8 @@ run "database_route_tables_per_az_without_azs" {
   }
 
   assert {
-    condition     = aws_route_table.database[0].tags["Name"] == "unit-test-database-euw1-az1"
-    error_message = "Per-AZ database route tables must be named after the AZ the module picked."
+    condition     = aws_route_table.database[0].tags["Name"] == "unit-test-database-eu-west-1a"
+    error_message = "Per-AZ database route tables must be named after their AZ."
   }
 }
 
@@ -794,28 +788,6 @@ run "public_subnets_assign_no_public_ip_by_default" {
   }
 }
 
-run "two_az_region" {
-  command = plan
-
-  override_data {
-    target = data.aws_availability_zones.azs
-    values = {
-      names    = ["ap-test-1a", "ap-test-1b"]
-      zone_ids = ["apt1-az1", "apt1-az2"]
-    }
-  }
-
-  assert {
-    condition     = length(aws_subnet.public) == 2 && length(aws_subnet.private) == 2 && length(aws_subnet.database) == 2
-    error_message = "In a 2-AZ region the module must carve one subnet per tier per AZ, not fail."
-  }
-
-  assert {
-    condition     = aws_subnet.private[*].availability_zone_id == ["apt1-az1", "apt1-az2"]
-    error_message = "Carved subnets must spread across the region's AZs."
-  }
-}
-
 run "carves_one_subnet_per_given_az" {
   command = plan
 
@@ -826,6 +798,41 @@ run "carves_one_subnet_per_given_az" {
   assert {
     condition     = length(aws_subnet.public) == 2 && aws_subnet.public[*].availability_zone == ["eu-west-1a", "eu-west-1b"]
     error_message = "With two AZs given, the module must carve two subnets per tier, one in each."
+  }
+}
+
+# Issue #13: the AZ list is pinned by the caller.
+
+run "rejects_empty_azs" {
+  command = plan
+
+  variables {
+    azs = []
+  }
+
+  expect_failures = [var.azs]
+}
+
+run "rejects_blank_or_duplicate_azs" {
+  command = plan
+
+  variables {
+    azs = ["eu-west-1a", "eu-west-1a", " "]
+  }
+
+  expect_failures = [var.azs]
+}
+
+run "carves_only_in_given_azs" {
+  command = plan
+
+  variables {
+    azs = ["euw1-az2", "euw1-az3"]
+  }
+
+  assert {
+    condition     = length(aws_subnet.private) == 2 && aws_subnet.private[*].availability_zone_id == ["euw1-az2", "euw1-az3"]
+    error_message = "Carving must use exactly the AZs given, by name or by ID."
   }
 }
 
