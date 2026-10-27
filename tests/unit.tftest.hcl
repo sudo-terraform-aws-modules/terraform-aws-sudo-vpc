@@ -15,6 +15,24 @@ mock_provider "aws" {
     }
   }
 
+  mock_data "aws_caller_identity" {
+    defaults = {
+      account_id = "123456789012"
+    }
+  }
+
+  mock_data "aws_partition" {
+    defaults = {
+      partition = "aws"
+    }
+  }
+
+  mock_data "aws_region" {
+    defaults = {
+      region = "eu-west-1"
+    }
+  }
+
   # Generated values are random strings, which fail the provider's ARN checks on apply.
   mock_resource "aws_cloudwatch_log_group" {
     defaults = {
@@ -58,8 +76,8 @@ run "defaults" {
   }
 
   assert {
-    condition     = aws_flow_log.default[0].traffic_type == "REJECT" && aws_cloudwatch_log_group.flow_log[0].retention_in_days == 90
-    error_message = "Flow logs must be on by default, capturing REJECT traffic with 90-day retention."
+    condition     = aws_flow_log.default[0].traffic_type == "REJECT" && aws_cloudwatch_log_group.flow_log[0].retention_in_days == 365
+    error_message = "Flow logs must be on by default, capturing REJECT traffic with 365-day retention."
   }
 
   assert {
@@ -592,5 +610,60 @@ run "carves_smallest_supported_vpc" {
   assert {
     condition     = aws_subnet.public[0].cidr_block == "10.0.0.0/28"
     error_message = "A /20 VPC must be carved into /28 subnets, the smallest size AWS allows."
+  }
+}
+
+# Issue #11: flow log IAM and retention.
+
+run "flow_log_policy_scoped_to_log_group" {
+  command = apply
+
+  assert {
+    condition     = alltrue([for st in data.aws_iam_policy_document.vpc_flow_log_cloudwatch[0].statement : !contains(st.resources, "*")])
+    error_message = "The flow log policy must not use resources = [\"*\"]."
+  }
+
+  assert {
+    condition     = contains(flatten([for st in data.aws_iam_policy_document.vpc_flow_log_cloudwatch[0].statement : st.resources]), "${aws_cloudwatch_log_group.flow_log[0].arn}:*")
+    error_message = "Writing log events must be scoped to the flow log group."
+  }
+
+  assert {
+    condition     = contains(flatten([for st in data.aws_iam_policy_document.vpc_flow_log_cloudwatch[0].statement : st.resources]), "arn:aws:logs:eu-west-1:123456789012:log-group:*")
+    error_message = "DescribeLogGroups must be scoped to the account and region."
+  }
+}
+
+run "flow_log_policy_scoped_to_given_log_group" {
+  command = apply
+
+  variables {
+    create_flow_log_cloudwatch_log_group = false
+    flow_log_destination_arn             = "arn:aws:logs:eu-west-1:123456789012:log-group:existing-flow-logs"
+  }
+
+  assert {
+    condition     = contains(flatten([for st in data.aws_iam_policy_document.vpc_flow_log_cloudwatch[0].statement : st.resources]), "arn:aws:logs:eu-west-1:123456789012:log-group:existing-flow-logs:*")
+    error_message = "With a log group passed in, the policy must be scoped to that log group."
+  }
+}
+
+run "flow_log_trust_policy_conditions" {
+  command = apply
+
+  assert {
+    condition = anytrue([
+      for c in one(data.aws_iam_policy_document.flow_log_cloudwatch_assume_role[0].statement).condition :
+      c.test == "StringEquals" && c.variable == "aws:SourceAccount" && tolist(c.values) == tolist(["123456789012"])
+    ])
+    error_message = "The flow log role trust policy must pin aws:SourceAccount."
+  }
+
+  assert {
+    condition = anytrue([
+      for c in one(data.aws_iam_policy_document.flow_log_cloudwatch_assume_role[0].statement).condition :
+      c.test == "ArnLike" && c.variable == "aws:SourceArn" && tolist(c.values) == tolist(["arn:aws:ec2:eu-west-1:123456789012:vpc-flow-log/*"])
+    ])
+    error_message = "The flow log role trust policy must pin aws:SourceArn to this account's flow logs."
   }
 }

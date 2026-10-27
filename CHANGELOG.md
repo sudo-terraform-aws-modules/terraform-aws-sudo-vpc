@@ -14,7 +14,7 @@ All notable changes to this module are documented here. The format follows [Keep
 ### Changed
 
 - **Breaking:** the minimum Terraform version is now `1.3.0` (was `0.13.1`), and the minimum AWS provider version is now `6.0` (was `3.67`). There is no upper bound. #9 added a `< 7.0` cap and #12 removed it again, following the team standard of `>=` constraints only. To migrate, upgrade Terraform to 1.3.0 or later and the AWS provider to 6.0 or later, then run `terraform init -upgrade` and review the plan before applying (#9, #12).
-- **Breaking:** `flow_log_cloudwatch_log_group_retention_in_days` defaults to `90` (was `null`, which kept logs forever). Existing CloudWatch flow log groups created by the module change to 90-day retention on the next apply. Set the variable to `0` to keep logs forever (#9).
+- **Breaking:** `flow_log_cloudwatch_log_group_retention_in_days` defaults to `365` (was `null` in `v0.0.5`, which kept logs forever). #9 set it to `90`, and #11 raised it to a year. Existing CloudWatch flow log groups created by the module change to 365-day retention on the next apply. Set the variable to `0` to keep logs forever (#9, #11).
 - **Breaking:** `vpn_gateway_id`, `flow_log_destination_arn`, `flow_log_cloudwatch_iam_role_arn` and `flow_log_cloudwatch_log_group_name_suffix` default to `null` instead of `""`, and an empty string now fails validation at plan time. To migrate, replace any `""` you pass for these with `null` or remove the argument. The behaviour for `null` matches what `""` used to do (#12).
 - **Breaking:** outputs for resources that are not created return `null` instead of `""`. This covers the `vpc_*`, `default_*`, `vgw_*`, `default_vpc_*` and `database_subnet_group*` outputs. To migrate, replace checks such as `output != ""` with `output != null`, and wrap string interpolation of these outputs in `coalesce()` or a conditional (#12).
 - `customer_gateways` is now a map of objects with `bgp_asn`, `ip_address` and optional `device_name`, instead of `map(map(any))`. Inputs that worked before keep working; a numeric `bgp_asn` is converted to the string the provider expects. A missing `bgp_asn` or `ip_address` is now reported as a type error at plan time (#12).
@@ -38,6 +38,10 @@ All notable changes to this module are documented here. The format follows [Keep
 - Database route tables and routes now follow the subnets the module actually creates: database subnets carved from `cidr` get a route table, per-AZ database route tables no longer fail the plan when `azs` is not set, and `one_nat_gateway_per_az` gives each database subnet the route table and NAT gateway of its AZ. With `one_nat_gateway_per_az = true`, existing VPCs gain the second and third database route tables on the next apply (#10).
 - `database_dedicated_network_acl = true` no longer denies all traffic. The NACL was created with no rules, which made every database in those subnets unreachable. It now gets the rules from `database_inbound_acl_rules` and `database_outbound_acl_rules`, which allow all traffic by default. Existing VPCs with this setting get the allow-all rules on the next apply (#10).
 - With `use_ipam_pool = true`, the given `public_subnets`, `private_subnets` and `database_subnets` are now used. Before, they were ignored unless `cidr` was also set (#10).
+
+### Security
+
+- The VPC flow log IAM policy is scoped to the flow log group, instead of `resources = ["*"]`: stream writes are limited to that group, and `DescribeLogGroups` to the account and region. The role trust policy now requires `aws:SourceAccount` to be this account and `aws:SourceArn` to be one of its flow logs, which blocks confused deputy use of the role. Existing roles and policies are updated in place on the next apply (#11).
 
 <!--
 Group entries under Added, Changed, Deprecated, Removed, Fixed or Security, and drop the

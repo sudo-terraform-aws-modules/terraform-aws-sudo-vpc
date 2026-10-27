@@ -7,7 +7,7 @@
 
 Terraform module that creates an Amazon VPC and the network around it: public, private and database subnets across availability zones, an internet gateway, optional NAT gateways, route tables, a database subnet group and VPC flow logs. It can also create a VPN gateway and customer gateways, and it takes over the VPC's default security group and removes its rules.
 
-With no inputs the module creates a `172.31.0.0/16` VPC with three public, three private and three database `/24` subnets in the first three availability zones of the region. There is no NAT gateway, so the private and database subnets have no route to the internet. Public subnets give instances a public IP on launch. Flow logs capture rejected traffic into a CloudWatch log group kept for 90 days, and the default security group has no rules. These defaults suit a sandbox. For a shared or long-lived network, set `cidr` to a range that does not overlap your other networks, size the subnets yourself and turn on NAT gateways. Safer defaults are tracked in #11.
+With no inputs the module creates a `172.31.0.0/16` VPC with three public, three private and three database `/24` subnets in the first three availability zones of the region. There is no NAT gateway, so the private and database subnets have no route to the internet. Public subnets give instances a public IP on launch. Flow logs capture rejected traffic into a CloudWatch log group kept for 365 days, and the default security group has no rules. These defaults suit a sandbox. For a shared or long-lived network, set `cidr` to a range that does not overlap your other networks, size the subnets yourself and turn on NAT gateways. Safer defaults are tracked in #11.
 
 ## Usage
 
@@ -111,8 +111,11 @@ No modules.
 | [aws_vpn_gateway_route_propagation.private](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpn_gateway_route_propagation) | resource |
 | [aws_vpn_gateway_route_propagation.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpn_gateway_route_propagation) | resource |
 | [aws_availability_zones.azs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) | data source |
+| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_iam_policy_document.flow_log_cloudwatch_assume_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.vpc_flow_log_cloudwatch](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_partition.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/partition) | data source |
+| [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 
 ## Inputs
 
@@ -164,7 +167,7 @@ No modules.
 | <a name="input_flow_log_cloudwatch_log_group_kms_key_id"></a> [flow\_log\_cloudwatch\_log\_group\_kms\_key\_id](#input\_flow\_log\_cloudwatch\_log\_group\_kms\_key\_id) | (optional) The ARN of the KMS Key to use when encrypting log data for VPC flow logs. | `string` | `null` | no |
 | <a name="input_flow_log_cloudwatch_log_group_name_prefix"></a> [flow\_log\_cloudwatch\_log\_group\_name\_prefix](#input\_flow\_log\_cloudwatch\_log\_group\_name\_prefix) | (optional) Specifies the name prefix of CloudWatch Log Group for VPC flow logs. | `string` | `"/aws/vpc-flow-log/"` | no |
 | <a name="input_flow_log_cloudwatch_log_group_name_suffix"></a> [flow\_log\_cloudwatch\_log\_group\_name\_suffix](#input\_flow\_log\_cloudwatch\_log\_group\_name\_suffix) | (optional) Specifies the name suffix of CloudWatch Log Group for VPC flow logs. null uses the VPC ID. Default: null | `string` | `null` | no |
-| <a name="input_flow_log_cloudwatch_log_group_retention_in_days"></a> [flow\_log\_cloudwatch\_log\_group\_retention\_in\_days](#input\_flow\_log\_cloudwatch\_log\_group\_retention\_in\_days) | (optional) Specifies the number of days you want to retain log events in the specified log group for VPC flow logs. | `number` | `90` | no |
+| <a name="input_flow_log_cloudwatch_log_group_retention_in_days"></a> [flow\_log\_cloudwatch\_log\_group\_retention\_in\_days](#input\_flow\_log\_cloudwatch\_log\_group\_retention\_in\_days) | (optional) Specifies the number of days you want to retain log events in the specified log group for VPC flow logs. 0 keeps them forever. Default: 365 | `number` | `365` | no |
 | <a name="input_flow_log_destination_arn"></a> [flow\_log\_destination\_arn](#input\_flow\_log\_destination\_arn) | (optional) The ARN of the CloudWatch log group or S3 bucket where VPC Flow Logs will be pushed. If this ARN is a S3 bucket the appropriate permissions need to be set on that bucket's policy. When create\_flow\_log\_cloudwatch\_log\_group is set to false this argument must be provided. Default: null | `string` | `null` | no |
 | <a name="input_flow_log_destination_type"></a> [flow\_log\_destination\_type](#input\_flow\_log\_destination\_type) | Type of flow log destination. Can be s3 or cloud-watch-logs. Default: cloud-watch-logs | `string` | `"cloud-watch-logs"` | no |
 | <a name="input_flow_log_file_format"></a> [flow\_log\_file\_format](#input\_flow\_log\_file\_format) | (optional) The format for the flow log. Valid values: plain-text, parquet. Default: plain-text | `string` | `"plain-text"` | no |
