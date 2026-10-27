@@ -877,22 +877,26 @@ resource "aws_route_table_association" "redshift" {
 ################################################################################
 
 locals {
-  vpc_ipv4_cidrs = local.create_vpc ? concat([aws_vpc.this[0].cidr_block], var.secondary_cidr_blocks) : []
+  # var.cidr when given, so the rules are known at plan time and scanners can read them.
+  vpc_ipv4_cidrs = local.create_vpc ? concat([var.use_ipam_pool ? aws_vpc.this[0].cidr_block : var.cidr], var.secondary_cidr_blocks) : []
   nacl_ipv6      = local.create_vpc && var.enable_ipv6
 
   # Building blocks for the default tier rules. NACLs are stateless, so ephemeral ports
-  # must be open inbound for replies to anything the subnets reach out to.
+  # must be open inbound for replies to anything the subnets reach out to. TCP skips 3389
+  # so RDP is never open to the internet.
   nacl_rules_from_vpc = concat(
     [for i, cidr in local.vpc_ipv4_cidrs : { rule_number = 100 + i, rule_action = "allow", protocol = "-1", from_port = 0, to_port = 0, cidr_block = cidr, ipv6_cidr_block = null }],
     local.nacl_ipv6 ? [{ rule_number = 110, rule_action = "allow", protocol = "-1", from_port = 0, to_port = 0, cidr_block = null, ipv6_cidr_block = aws_vpc.this[0].ipv6_cidr_block }] : [],
   )
   nacl_rules_ephemeral = concat(
     [
-      { rule_number = 200, rule_action = "allow", protocol = "tcp", from_port = 1024, to_port = 65535, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null },
+      { rule_number = 200, rule_action = "allow", protocol = "tcp", from_port = 1024, to_port = 3388, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null },
+      { rule_number = 201, rule_action = "allow", protocol = "tcp", from_port = 3390, to_port = 65535, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null },
       { rule_number = 210, rule_action = "allow", protocol = "udp", from_port = 1024, to_port = 65535, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null },
     ],
     local.nacl_ipv6 ? [
-      { rule_number = 220, rule_action = "allow", protocol = "tcp", from_port = 1024, to_port = 65535, cidr_block = null, ipv6_cidr_block = "::/0" },
+      { rule_number = 220, rule_action = "allow", protocol = "tcp", from_port = 1024, to_port = 3388, cidr_block = null, ipv6_cidr_block = "::/0" },
+      { rule_number = 221, rule_action = "allow", protocol = "tcp", from_port = 3390, to_port = 65535, cidr_block = null, ipv6_cidr_block = "::/0" },
       { rule_number = 230, rule_action = "allow", protocol = "udp", from_port = 1024, to_port = 65535, cidr_block = null, ipv6_cidr_block = "::/0" },
     ] : [],
   )
@@ -915,7 +919,7 @@ locals {
   # Intra: VPC traffic only, both ways.
   network_acls = {
     public = {
-      create   = var.public_dedicated_network_acl && length(aws_subnet.public) > 0
+      create   = local.create_vpc && var.public_dedicated_network_acl && length(local.public_subnets) > 0
       subnets  = aws_subnet.public[*].id
       suffix   = var.public_subnet_suffix
       tags     = var.public_acl_tags
@@ -923,7 +927,7 @@ locals {
       outbound = var.public_outbound_acl_rules != null ? var.public_outbound_acl_rules : local.nacl_rules_all_out
     }
     private = {
-      create   = var.private_dedicated_network_acl && length(aws_subnet.private) > 0
+      create   = local.create_vpc && var.private_dedicated_network_acl && length(local.private_subnets) > 0
       subnets  = aws_subnet.private[*].id
       suffix   = var.private_subnet_suffix
       tags     = var.private_acl_tags
@@ -931,7 +935,7 @@ locals {
       outbound = var.private_outbound_acl_rules != null ? var.private_outbound_acl_rules : local.nacl_rules_all_out
     }
     database = {
-      create   = var.database_dedicated_network_acl && length(aws_subnet.database) > 0
+      create   = local.create_database_subnets && var.database_dedicated_network_acl
       subnets  = aws_subnet.database[*].id
       suffix   = var.database_subnet_suffix
       tags     = var.database_acl_tags
@@ -939,7 +943,7 @@ locals {
       outbound = var.database_outbound_acl_rules != null ? var.database_outbound_acl_rules : local.nacl_rules_all_out
     }
     intra = {
-      create   = var.intra_dedicated_network_acl && length(aws_subnet.intra) > 0
+      create   = local.create_intra_subnets && var.intra_dedicated_network_acl
       subnets  = aws_subnet.intra[*].id
       suffix   = var.intra_subnet_suffix
       tags     = var.intra_acl_tags
@@ -947,7 +951,7 @@ locals {
       outbound = var.intra_outbound_acl_rules != null ? var.intra_outbound_acl_rules : local.nacl_rules_from_vpc
     }
     elasticache = {
-      create   = var.elasticache_dedicated_network_acl && length(aws_subnet.elasticache) > 0
+      create   = local.create_elasticache_subnets && var.elasticache_dedicated_network_acl
       subnets  = aws_subnet.elasticache[*].id
       suffix   = var.elasticache_subnet_suffix
       tags     = var.elasticache_acl_tags
@@ -955,7 +959,7 @@ locals {
       outbound = var.elasticache_outbound_acl_rules != null ? var.elasticache_outbound_acl_rules : local.nacl_rules_all_out
     }
     redshift = {
-      create   = var.redshift_dedicated_network_acl && length(aws_subnet.redshift) > 0
+      create   = local.create_redshift_subnets && var.redshift_dedicated_network_acl
       subnets  = aws_subnet.redshift[*].id
       suffix   = var.redshift_subnet_suffix
       tags     = var.redshift_acl_tags

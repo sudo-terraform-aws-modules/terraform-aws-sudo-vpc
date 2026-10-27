@@ -1027,6 +1027,11 @@ run "public_network_acl_default_rules" {
   }
 
   assert {
+    condition     = alltrue([for k, r in aws_network_acl_rule.this : r.egress || r.cidr_block != "0.0.0.0/0" || r.protocol == "udp" || r.from_port > 3389 || r.to_port < 3389])
+    error_message = "No default rule may open RDP (3389) to the internet."
+  }
+
+  assert {
     condition     = aws_network_acl_rule.this["public-ingress-101"].cidr_block == "100.64.0.0/16"
     error_message = "VPC rules must cover secondary CIDR blocks."
   }
