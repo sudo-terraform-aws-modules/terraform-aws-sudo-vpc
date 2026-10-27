@@ -34,6 +34,12 @@ mock_provider "aws" {
   }
 
   # Generated values are random strings, which fail the provider's ARN checks on apply.
+  mock_resource "aws_vpc" {
+    defaults = {
+      ipv6_cidr_block = "2600:1f18:abcd:1200::/56"
+    }
+  }
+
   mock_resource "aws_cloudwatch_log_group" {
     defaults = {
       arn = "arn:aws:logs:eu-west-1:123456789012:log-group:/aws/vpc-flow-log/unit-test"
@@ -820,5 +826,53 @@ run "carves_one_subnet_per_given_az" {
   assert {
     condition     = length(aws_subnet.public) == 2 && aws_subnet.public[*].availability_zone == ["eu-west-1a", "eu-west-1b"]
     error_message = "With two AZs given, the module must carve two subnets per tier, one in each."
+  }
+}
+
+# Issue #11: IPv6 egress for private subnets.
+
+run "private_ipv6_egress" {
+  command = apply
+
+  variables {
+    enable_ipv6                  = true
+    public_subnets               = ["10.0.0.0/24", "10.0.1.0/24", "10.0.2.0/24"]
+    private_subnets              = ["10.0.16.0/24", "10.0.17.0/24", "10.0.18.0/24"]
+    public_subnet_ipv6_prefixes  = [0, 1, 2]
+    private_subnet_ipv6_prefixes = [3, 4, 5]
+    enable_nat_gateway           = true
+    one_nat_gateway_per_az       = true
+  }
+
+  assert {
+    condition     = length(aws_route.private_ipv6_egress) == 3
+    error_message = "Every private route table must get an IPv6 default route."
+  }
+
+  assert {
+    condition     = aws_route.private_ipv6_egress[*].route_table_id == aws_route_table.private[*].id && alltrue([for r in aws_route.private_ipv6_egress : r.destination_ipv6_cidr_block == "::/0" && r.egress_only_gateway_id == aws_egress_only_internet_gateway.this[0].id])
+    error_message = "Private IPv6 traffic must leave through the egress-only internet gateway."
+  }
+}
+
+run "egress_only_gateway_with_carved_subnets" {
+  command = plan
+
+  variables {
+    enable_ipv6 = true
+  }
+
+  assert {
+    condition     = length(aws_egress_only_internet_gateway.this) == 1 && length(aws_route.private_ipv6_egress) == length(aws_route_table.private)
+    error_message = "With IPv6 on, the egress-only gateway and private IPv6 routes must also exist when the module carves the subnets."
+  }
+}
+
+run "no_private_ipv6_egress_without_ipv6" {
+  command = plan
+
+  assert {
+    condition     = length(aws_egress_only_internet_gateway.this) == 0 && length(aws_route.private_ipv6_egress) == 0
+    error_message = "Without IPv6 there must be no egress-only gateway or IPv6 routes."
   }
 }

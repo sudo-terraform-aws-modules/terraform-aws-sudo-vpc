@@ -44,6 +44,8 @@ All notable changes to this module are documented here. The format follows [Keep
 - `database_dedicated_network_acl = true` no longer denies all traffic. The NACL was created with no rules, which made every database in those subnets unreachable. It now gets the rules from `database_inbound_acl_rules` and `database_outbound_acl_rules`, which allow all traffic by default. Existing VPCs with this setting get the allow-all rules on the next apply (#10).
 - With `use_ipam_pool = true`, the given `public_subnets`, `private_subnets` and `database_subnets` are now used. Before, they were ignored unless `cidr` was also set (#10).
 - Automatic subnet carving works in regions with two availability zones. It carves one subnet per tier per AZ, up to three, using the AZs in `azs` when given. Before, it always carved three per tier and failed the plan in a 2-AZ region (#11).
+- With `enable_ipv6 = true`, private subnets get a `::/0` route through the egress-only internet gateway, one per private route table. Before, only the public and database tiers had an IPv6 default route, so private IPv6 egress did not work (#11).
+- The egress-only internet gateway is created when the module carves the subnets. Before, it was only created when subnet lists were passed in (#11).
 
 ### Security
 
