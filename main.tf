@@ -772,3 +772,133 @@ resource "aws_vpn_gateway_route_propagation" "intra" {
   route_table_id = aws_route_table.intra[0].id
   vpn_gateway_id = local.propagation_vpn_gateway_id
 }
+
+################################################################################
+# ElastiCache subnets
+################################################################################
+
+locals {
+  create_elasticache_subnets     = local.create_vpc && length(var.elasticache_subnets) > 0
+  create_elasticache_route_table = local.create_elasticache_subnets && var.create_elasticache_subnet_route_table
+}
+
+resource "aws_subnet" "elasticache" {
+  count = local.create_elasticache_subnets ? length(var.elasticache_subnets) : 0
+
+  vpc_id                          = local.vpc_id
+  cidr_block                      = var.elasticache_subnets[count.index]
+  availability_zone               = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) > 0 ? element(local.azs, count.index) : null
+  availability_zone_id            = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) == 0 ? element(local.azs, count.index) : null
+  assign_ipv6_address_on_creation = var.elasticache_subnet_assign_ipv6_address_on_creation == null ? var.assign_ipv6_address_on_creation : var.elasticache_subnet_assign_ipv6_address_on_creation
+
+  ipv6_cidr_block = var.enable_ipv6 && length(var.elasticache_subnet_ipv6_prefixes) > 0 ? cidrsubnet(aws_vpc.this[0].ipv6_cidr_block, 8, var.elasticache_subnet_ipv6_prefixes[count.index]) : null
+
+  tags = merge(
+    {
+      Name = try(
+        var.elasticache_subnet_names[count.index],
+        format("${var.name}-${var.elasticache_subnet_suffix}-%s", element(local.azs, count.index))
+      )
+    },
+    var.tags,
+    var.elasticache_subnet_tags,
+  )
+}
+
+resource "aws_elasticache_subnet_group" "elasticache" {
+  count = local.create_elasticache_subnets && var.create_elasticache_subnet_group ? 1 : 0
+
+  name        = lower(coalesce(var.elasticache_subnet_group_name, var.name))
+  description = "ElastiCache subnet group for ${var.name}"
+  subnet_ids  = aws_subnet.elasticache[*].id
+
+  tags = merge(
+    { "Name" = lower(coalesce(var.elasticache_subnet_group_name, var.name)) },
+    var.tags,
+    var.elasticache_subnet_group_tags,
+  )
+}
+
+resource "aws_route_table" "elasticache" {
+  count = local.create_elasticache_route_table ? 1 : 0
+
+  vpc_id = local.vpc_id
+
+  tags = merge(
+    { "Name" = "${var.name}-${var.elasticache_subnet_suffix}" },
+    var.tags,
+    var.elasticache_route_table_tags,
+  )
+}
+
+resource "aws_route_table_association" "elasticache" {
+  count = local.create_elasticache_route_table ? length(var.elasticache_subnets) : 0
+
+  subnet_id      = aws_subnet.elasticache[count.index].id
+  route_table_id = aws_route_table.elasticache[0].id
+}
+
+################################################################################
+# Redshift subnets
+################################################################################
+
+locals {
+  create_redshift_subnets     = local.create_vpc && length(var.redshift_subnets) > 0
+  create_redshift_route_table = local.create_redshift_subnets && var.create_redshift_subnet_route_table
+}
+
+resource "aws_subnet" "redshift" {
+  count = local.create_redshift_subnets ? length(var.redshift_subnets) : 0
+
+  vpc_id                          = local.vpc_id
+  cidr_block                      = var.redshift_subnets[count.index]
+  availability_zone               = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) > 0 ? element(local.azs, count.index) : null
+  availability_zone_id            = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) == 0 ? element(local.azs, count.index) : null
+  assign_ipv6_address_on_creation = var.redshift_subnet_assign_ipv6_address_on_creation == null ? var.assign_ipv6_address_on_creation : var.redshift_subnet_assign_ipv6_address_on_creation
+
+  ipv6_cidr_block = var.enable_ipv6 && length(var.redshift_subnet_ipv6_prefixes) > 0 ? cidrsubnet(aws_vpc.this[0].ipv6_cidr_block, 8, var.redshift_subnet_ipv6_prefixes[count.index]) : null
+
+  tags = merge(
+    {
+      Name = try(
+        var.redshift_subnet_names[count.index],
+        format("${var.name}-${var.redshift_subnet_suffix}-%s", element(local.azs, count.index))
+      )
+    },
+    var.tags,
+    var.redshift_subnet_tags,
+  )
+}
+
+resource "aws_redshift_subnet_group" "redshift" {
+  count = local.create_redshift_subnets && var.create_redshift_subnet_group ? 1 : 0
+
+  name        = lower(coalesce(var.redshift_subnet_group_name, var.name))
+  description = "Redshift subnet group for ${var.name}"
+  subnet_ids  = aws_subnet.redshift[*].id
+
+  tags = merge(
+    { "Name" = lower(coalesce(var.redshift_subnet_group_name, var.name)) },
+    var.tags,
+    var.redshift_subnet_group_tags,
+  )
+}
+
+resource "aws_route_table" "redshift" {
+  count = local.create_redshift_route_table ? 1 : 0
+
+  vpc_id = local.vpc_id
+
+  tags = merge(
+    { "Name" = "${var.name}-${var.redshift_subnet_suffix}" },
+    var.tags,
+    var.redshift_route_table_tags,
+  )
+}
+
+resource "aws_route_table_association" "redshift" {
+  count = local.create_redshift_route_table ? length(var.redshift_subnets) : 0
+
+  subnet_id      = aws_subnet.redshift[count.index].id
+  route_table_id = aws_route_table.redshift[0].id
+}

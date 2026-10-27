@@ -252,3 +252,53 @@ output "intra_route_table_ids" {
   description = "Intra route table IDs"
   value       = aws_route_table.intra[*].id
 }
+
+output "elasticache_subnets" {
+  description = "ElastiCache subnet IDs"
+  value       = aws_subnet.elasticache[*].id
+}
+
+output "elasticache_subnet_arns" {
+  description = "ElastiCache subnet ARNs"
+  value       = aws_subnet.elasticache[*].arn
+}
+
+output "elasticache_subnets_cidr_blocks" {
+  description = "ElastiCache subnet CIDR blocks"
+  value       = compact(aws_subnet.elasticache[*].cidr_block)
+}
+
+output "elasticache_subnet_group_name" {
+  description = "Name of the ElastiCache subnet group, or null when not created"
+  value       = try(aws_elasticache_subnet_group.elasticache[0].name, null)
+}
+
+output "elasticache_route_table_ids" {
+  description = "ElastiCache route table IDs"
+  value       = aws_route_table.elasticache[*].id
+}
+
+output "redshift_subnets" {
+  description = "Redshift subnet IDs"
+  value       = aws_subnet.redshift[*].id
+}
+
+output "redshift_subnet_arns" {
+  description = "Redshift subnet ARNs"
+  value       = aws_subnet.redshift[*].arn
+}
+
+output "redshift_subnets_cidr_blocks" {
+  description = "Redshift subnet CIDR blocks"
+  value       = compact(aws_subnet.redshift[*].cidr_block)
+}
+
+output "redshift_subnet_group_name" {
+  description = "Name of the Redshift subnet group, or null when not created"
+  value       = try(aws_redshift_subnet_group.redshift[0].name, null)
+}
+
+output "redshift_route_table_ids" {
+  description = "Redshift route table IDs"
+  value       = aws_route_table.redshift[*].id
+}

@@ -963,3 +963,43 @@ run "no_intra_subnets_by_default" {
     error_message = "Intra subnets are never carved."
   }
 }
+
+run "elasticache_and_redshift_subnets" {
+  command = apply
+
+  variables {
+    elasticache_subnets                = ["10.0.64.0/24", "10.0.65.0/24"]
+    redshift_subnets                   = ["10.0.80.0/24", "10.0.81.0/24"]
+    create_redshift_subnet_route_table = true
+    redshift_subnet_group_name         = "Unit-Test-Redshift"
+  }
+
+  assert {
+    condition     = output.elasticache_subnets_cidr_blocks == tolist(["10.0.64.0/24", "10.0.65.0/24"]) && output.elasticache_subnet_group_name == "unit-test"
+    error_message = "ElastiCache subnets and their subnet group must be created from the given list."
+  }
+
+  assert {
+    condition     = length(aws_route_table.elasticache) == 0 && length(aws_route_table_association.elasticache) == 0
+    error_message = "ElastiCache subnets get no route table unless asked."
+  }
+
+  assert {
+    condition     = output.redshift_subnet_group_name == "unit-test-redshift" && aws_redshift_subnet_group.redshift[0].subnet_ids == toset(aws_subnet.redshift[*].id)
+    error_message = "The Redshift subnet group must hold the Redshift subnets, with a lower-case name."
+  }
+
+  assert {
+    condition     = length(aws_route_table.redshift) == 1 && aws_route_table_association.redshift[*].route_table_id == [aws_route_table.redshift[0].id, aws_route_table.redshift[0].id]
+    error_message = "Redshift subnets must share their own route table when asked."
+  }
+}
+
+run "no_elasticache_or_redshift_by_default" {
+  command = plan
+
+  assert {
+    condition     = length(aws_subnet.elasticache) == 0 && length(aws_subnet.redshift) == 0 && length(aws_elasticache_subnet_group.elasticache) == 0 && length(aws_redshift_subnet_group.redshift) == 0
+    error_message = "ElastiCache and Redshift subnets are never carved."
+  }
+}

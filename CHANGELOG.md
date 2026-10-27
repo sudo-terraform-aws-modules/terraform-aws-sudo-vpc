@@ -13,6 +13,7 @@ All notable changes to this module are documented here. The format follows [Keep
 - `manage_default_route_table`, `default_route_table_name` and `default_route_table_tags`, and `default_network_acl_name`, `default_network_acl_ingress`, `default_network_acl_egress` and `default_network_acl_tags`, for managing the VPC default route table and default network ACL (#11).
 - Outputs for the internet gateway, egress-only gateway, NAT gateways and their public IPs, database subnet ARNs and CIDRs, database route tables, the AZs in use, the VPC IPv6 CIDR, and the flow log, its destination, IAM role and log group (#13).
 - Intra subnets from `intra_subnets`, with one shared route table that has no internet route. `propagate_intra_route_tables_vgw` propagates VPN gateway routes into it; before, the variable existed but did nothing (#13).
+- ElastiCache and Redshift subnets from `elasticache_subnets` and `redshift_subnets`, each with a subnet group (on by default) and an optional route table with no route out of the VPC (#13).
 
 ### Changed
 

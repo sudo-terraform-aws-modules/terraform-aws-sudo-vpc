@@ -818,3 +818,143 @@ variable "propagate_intra_route_tables_vgw" {
   type        = bool
   default     = false
 }
+
+################################################################################
+# ElastiCache subnets
+################################################################################
+
+variable "elasticache_subnets" {
+  description = "ElastiCache subnets. Created only from this list, never carved."
+  type        = list(string)
+  default     = []
+}
+
+variable "elasticache_subnet_assign_ipv6_address_on_creation" {
+  description = "Assign IPv6 addresses on creation in ElastiCache subnets. null uses assign_ipv6_address_on_creation."
+  type        = bool
+  default     = null
+}
+
+variable "elasticache_subnet_ipv6_prefixes" {
+  description = "IPv6 prefix numbers for the ElastiCache subnets, carved as /64s from the VPC IPv6 range. One per subnet, in order."
+  type        = list(string)
+  default     = []
+}
+
+variable "elasticache_subnet_names" {
+  description = "Names for the ElastiCache subnets, in order. Defaults to <name>-<elasticache_subnet_suffix>-<az>."
+  type        = list(string)
+  default     = []
+}
+
+variable "elasticache_subnet_suffix" {
+  description = "Suffix for ElastiCache subnet and route table names"
+  type        = string
+  default     = "elasticache"
+}
+
+variable "elasticache_subnet_tags" {
+  description = "Additional tags for the ElastiCache subnets"
+  type        = map(string)
+  default     = {}
+}
+
+variable "create_elasticache_subnet_group" {
+  description = "Create a ElastiCache subnet group from the ElastiCache subnets"
+  type        = bool
+  default     = true
+}
+
+variable "elasticache_subnet_group_name" {
+  description = "Name of the ElastiCache subnet group. Defaults to name."
+  type        = string
+  default     = null
+}
+
+variable "elasticache_subnet_group_tags" {
+  description = "Additional tags for the ElastiCache subnet group"
+  type        = map(string)
+  default     = {}
+}
+
+variable "create_elasticache_subnet_route_table" {
+  description = "Give the ElastiCache subnets their own route table, with no route out of the VPC. Without it they use the VPC default route table."
+  type        = bool
+  default     = false
+}
+
+variable "elasticache_route_table_tags" {
+  description = "Additional tags for the ElastiCache route table"
+  type        = map(string)
+  default     = {}
+}
+
+################################################################################
+# Redshift subnets
+################################################################################
+
+variable "redshift_subnets" {
+  description = "Redshift subnets. Created only from this list, never carved."
+  type        = list(string)
+  default     = []
+}
+
+variable "redshift_subnet_assign_ipv6_address_on_creation" {
+  description = "Assign IPv6 addresses on creation in Redshift subnets. null uses assign_ipv6_address_on_creation."
+  type        = bool
+  default     = null
+}
+
+variable "redshift_subnet_ipv6_prefixes" {
+  description = "IPv6 prefix numbers for the Redshift subnets, carved as /64s from the VPC IPv6 range. One per subnet, in order."
+  type        = list(string)
+  default     = []
+}
+
+variable "redshift_subnet_names" {
+  description = "Names for the Redshift subnets, in order. Defaults to <name>-<redshift_subnet_suffix>-<az>."
+  type        = list(string)
+  default     = []
+}
+
+variable "redshift_subnet_suffix" {
+  description = "Suffix for Redshift subnet and route table names"
+  type        = string
+  default     = "redshift"
+}
+
+variable "redshift_subnet_tags" {
+  description = "Additional tags for the Redshift subnets"
+  type        = map(string)
+  default     = {}
+}
+
+variable "create_redshift_subnet_group" {
+  description = "Create a Redshift subnet group from the Redshift subnets"
+  type        = bool
+  default     = true
+}
+
+variable "redshift_subnet_group_name" {
+  description = "Name of the Redshift subnet group. Defaults to name."
+  type        = string
+  default     = null
+}
+
+variable "redshift_subnet_group_tags" {
+  description = "Additional tags for the Redshift subnet group"
+  type        = map(string)
+  default     = {}
+}
+
+variable "create_redshift_subnet_route_table" {
+  description = "Give the Redshift subnets their own route table, with no route out of the VPC. Without it they use the VPC default route table."
+  type        = bool
+  default     = false
+}
+
+variable "redshift_route_table_tags" {
+  description = "Additional tags for the Redshift route table"
+  type        = map(string)
+  default     = {}
+}
