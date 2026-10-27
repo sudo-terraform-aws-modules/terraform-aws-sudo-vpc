@@ -17,6 +17,9 @@ locals {
 
   azs = var.azs
 
+  # DNS64 only means something on subnets with an IPv6 range.
+  private_dns64 = var.enable_ipv6 && var.private_subnet_enable_dns64 && length(var.private_subnet_ipv6_prefixes) > 0
+
   # Carving splits cidr into four blocks and each block into three subnets, 8 bits in all.
   # A /20 gives /28 subnets, the smallest AWS allows; smaller VPCs are rejected below.
   # One subnet per tier per AZ in var.azs, up to three.
@@ -83,6 +86,11 @@ resource "aws_vpc" "this" {
       condition     = local.use_given_subnets || var.use_ipam_pool || var.cidr == null || try(local.carve_prefix <= 20, false)
       error_message = "Automatic subnet carving needs a VPC of /20 or larger, which gives /28 subnets, the smallest AWS allows. Use a larger cidr or pass public_subnets, private_subnets and database_subnets."
     }
+
+    precondition {
+      condition     = !(var.enable_ipv6 && var.private_subnet_enable_dns64) || var.enable_nat_gateway
+      error_message = "DNS64 hands IPv6-only workloads synthesized addresses that only work through NAT64. Set enable_nat_gateway = true, or turn private_subnet_enable_dns64 off."
+    }
   }
 }
 
@@ -131,6 +139,7 @@ resource "aws_subnet" "private" {
   availability_zone               = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) > 0 ? element(local.azs, count.index) : null
   availability_zone_id            = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) == 0 ? element(local.azs, count.index) : null
   assign_ipv6_address_on_creation = var.private_subnet_assign_ipv6_address_on_creation == null ? var.assign_ipv6_address_on_creation : var.private_subnet_assign_ipv6_address_on_creation
+  enable_dns64                    = local.private_dns64
 
   ipv6_cidr_block = var.enable_ipv6 && length(var.private_subnet_ipv6_prefixes) > 0 ? cidrsubnet(aws_vpc.this[0].ipv6_cidr_block, 8, var.private_subnet_ipv6_prefixes[count.index]) : null
 
@@ -312,6 +321,18 @@ resource "aws_route" "private_ipv6_egress" {
   route_table_id              = aws_route_table.private[count.index].id
   destination_ipv6_cidr_block = "::/0"
   egress_only_gateway_id      = aws_egress_only_internet_gateway.this[0].id
+
+  timeouts {
+    create = "5m"
+  }
+}
+
+resource "aws_route" "private_dns64_nat_gateway" {
+  count = local.create_vpc && local.private_dns64 && var.enable_nat_gateway ? local.private_route_table_count : 0
+
+  route_table_id              = aws_route_table.private[count.index].id
+  destination_ipv6_cidr_block = "64:ff9b::/96"
+  nat_gateway_id              = element(aws_nat_gateway.this[*].id, count.index)
 
   timeouts {
     create = "5m"
@@ -1135,4 +1156,34 @@ resource "aws_vpc_dhcp_options_association" "this" {
 
   vpc_id          = local.vpc_id
   dhcp_options_id = aws_vpc_dhcp_options.this[0].id
+}
+
+################################################################################
+# Block Public Access exclusions
+# Exclusions only. The account-level Block Public Access mode affects every VPC in the
+# account and region, so it belongs in the account baseline, not here.
+################################################################################
+
+resource "aws_vpc_block_public_access_exclusion" "vpc" {
+  count = local.create_vpc && var.vpc_block_public_access_exclusion_mode != null ? 1 : 0
+
+  vpc_id                          = local.vpc_id
+  internet_gateway_exclusion_mode = var.vpc_block_public_access_exclusion_mode
+
+  tags = merge(
+    { "Name" = var.name },
+    var.tags,
+  )
+}
+
+resource "aws_vpc_block_public_access_exclusion" "public_subnets" {
+  count = local.create_vpc && var.public_subnets_block_public_access_exclusion_mode != null ? length(aws_subnet.public) : 0
+
+  subnet_id                       = aws_subnet.public[count.index].id
+  internet_gateway_exclusion_mode = var.public_subnets_block_public_access_exclusion_mode
+
+  tags = merge(
+    { "Name" = aws_subnet.public[count.index].tags["Name"] },
+    var.tags,
+  )
 }

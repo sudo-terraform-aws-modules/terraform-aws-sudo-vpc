@@ -1210,3 +1210,76 @@ run "no_dhcp_options_by_default" {
     error_message = "DHCP options are opt-in."
   }
 }
+
+run "block_public_access_exclusions" {
+  command = apply
+
+  variables {
+    vpc_block_public_access_exclusion_mode            = "allow-egress"
+    public_subnets_block_public_access_exclusion_mode = "allow-bidirectional"
+  }
+
+  assert {
+    condition     = aws_vpc_block_public_access_exclusion.vpc[0].vpc_id == aws_vpc.this[0].id && aws_vpc_block_public_access_exclusion.vpc[0].internet_gateway_exclusion_mode == "allow-egress"
+    error_message = "The VPC exclusion must use the given mode."
+  }
+
+  assert {
+    condition     = aws_vpc_block_public_access_exclusion.public_subnets[*].subnet_id == aws_subnet.public[*].id && aws_vpc_block_public_access_exclusion.public_subnets[0].internet_gateway_exclusion_mode == "allow-bidirectional"
+    error_message = "Each public subnet must get its own exclusion."
+  }
+}
+
+run "no_block_public_access_exclusions_by_default" {
+  command = plan
+
+  assert {
+    condition     = length(aws_vpc_block_public_access_exclusion.vpc) == 0 && length(aws_vpc_block_public_access_exclusion.public_subnets) == 0
+    error_message = "Block Public Access exclusions are opt-in."
+  }
+}
+
+run "rejects_invalid_exclusion_mode" {
+  command = plan
+
+  variables {
+    vpc_block_public_access_exclusion_mode = "block-bidirectional"
+  }
+
+  expect_failures = [var.vpc_block_public_access_exclusion_mode]
+}
+
+run "private_dns64" {
+  command = apply
+
+  variables {
+    enable_ipv6                  = true
+    public_subnet_ipv6_prefixes  = [0, 1, 2]
+    private_subnet_ipv6_prefixes = [3, 4, 5]
+    enable_nat_gateway           = true
+    one_nat_gateway_per_az       = true
+    private_subnet_enable_dns64  = true
+  }
+
+  assert {
+    condition     = alltrue(aws_subnet.private[*].enable_dns64) && !anytrue(aws_subnet.public[*].enable_dns64)
+    error_message = "DNS64 must be on in the private subnets only."
+  }
+
+  assert {
+    condition     = length(aws_route.private_dns64_nat_gateway) == 3 && aws_route.private_dns64_nat_gateway[*].nat_gateway_id == aws_nat_gateway.this[*].id && aws_route.private_dns64_nat_gateway[0].destination_ipv6_cidr_block == "64:ff9b::/96"
+    error_message = "Each private route table must send 64:ff9b::/96 to its NAT gateway."
+  }
+}
+
+run "rejects_dns64_without_nat" {
+  command = plan
+
+  variables {
+    enable_ipv6                  = true
+    private_subnet_ipv6_prefixes = [3, 4, 5]
+    private_subnet_enable_dns64  = true
+  }
+
+  expect_failures = [aws_vpc.this]
+}

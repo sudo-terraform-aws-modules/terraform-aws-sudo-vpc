@@ -99,6 +99,7 @@ No modules.
 | [aws_route.database_internet_gateway](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
 | [aws_route.database_ipv6_egress](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
 | [aws_route.database_nat_gateway](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
+| [aws_route.private_dns64_nat_gateway](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
 | [aws_route.private_ipv6_egress](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
 | [aws_route.private_nat_gateway](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
 | [aws_route.public_internet_gateway](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
@@ -123,6 +124,8 @@ No modules.
 | [aws_subnet.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) | resource |
 | [aws_subnet.redshift](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) | resource |
 | [aws_vpc.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc) | resource |
+| [aws_vpc_block_public_access_exclusion.public_subnets](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_block_public_access_exclusion) | resource |
+| [aws_vpc_block_public_access_exclusion.vpc](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_block_public_access_exclusion) | resource |
 | [aws_vpc_dhcp_options.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_dhcp_options) | resource |
 | [aws_vpc_dhcp_options_association.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_dhcp_options_association) | resource |
 | [aws_vpc_endpoint.gateway](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint) | resource |
@@ -272,6 +275,7 @@ No modules.
 | <a name="input_private_outbound_acl_rules"></a> [private\_outbound\_acl\_rules](#input\_private\_outbound\_acl\_rules) | Outbound rules for the dedicated private network ACL. null allows all traffic. | <pre>list(object({<br/>    rule_number     = number<br/>    rule_action     = string<br/>    protocol        = string<br/>    from_port       = optional(number, 0)<br/>    to_port         = optional(number, 0)<br/>    icmp_type       = optional(number)<br/>    icmp_code       = optional(number)<br/>    cidr_block      = optional(string)<br/>    ipv6_cidr_block = optional(string)<br/>  }))</pre> | `null` | no |
 | <a name="input_private_route_table_tags"></a> [private\_route\_table\_tags](#input\_private\_route\_table\_tags) | Additional tags for the private route tables | `map(string)` | `{}` | no |
 | <a name="input_private_subnet_assign_ipv6_address_on_creation"></a> [private\_subnet\_assign\_ipv6\_address\_on\_creation](#input\_private\_subnet\_assign\_ipv6\_address\_on\_creation) | Assign IPv6 address on private subnet, must be disabled to change IPv6 CIDRs. This is the IPv6 equivalent of map\_public\_ip\_on\_launch | `bool` | `null` | no |
+| <a name="input_private_subnet_enable_dns64"></a> [private\_subnet\_enable\_dns64](#input\_private\_subnet\_enable\_dns64) | Turn on DNS64 in the IPv6 private subnets and route 64:ff9b::/96 through the NAT gateways, so IPv6-only workloads can reach IPv4-only services. Needs enable\_ipv6, private\_subnet\_ipv6\_prefixes and enable\_nat\_gateway. | `bool` | `false` | no |
 | <a name="input_private_subnet_ipv6_prefixes"></a> [private\_subnet\_ipv6\_prefixes](#input\_private\_subnet\_ipv6\_prefixes) | Assigns IPv6 private subnet id based on the Amazon provided /56 prefix base 10 integer (0-256). Must be of equal length to the corresponding IPv4 subnet list | `list(string)` | `[]` | no |
 | <a name="input_private_subnet_names"></a> [private\_subnet\_names](#input\_private\_subnet\_names) | Explicit values to use in the Name tag on private subnets. If empty, Name tags are generated. | `list(string)` | `[]` | no |
 | <a name="input_private_subnet_suffix"></a> [private\_subnet\_suffix](#input\_private\_subnet\_suffix) | Suffix to append to private subnets name | `string` | `"private"` | no |
@@ -291,6 +295,7 @@ No modules.
 | <a name="input_public_subnet_suffix"></a> [public\_subnet\_suffix](#input\_public\_subnet\_suffix) | Suffix to append to public subnets name | `string` | `"public"` | no |
 | <a name="input_public_subnet_tags"></a> [public\_subnet\_tags](#input\_public\_subnet\_tags) | Additional tags for the public subnets | `map(string)` | `{}` | no |
 | <a name="input_public_subnets"></a> [public\_subnets](#input\_public\_subnets) | A list of public subnets inside the VPC | `list(string)` | `[]` | no |
+| <a name="input_public_subnets_block_public_access_exclusion_mode"></a> [public\_subnets\_block\_public\_access\_exclusion\_mode](#input\_public\_subnets\_block\_public\_access\_exclusion\_mode) | Exclude each public subnet from account-level VPC Block Public Access: allow-bidirectional or allow-egress. null creates no exclusions. | `string` | `null` | no |
 | <a name="input_redshift_acl_tags"></a> [redshift\_acl\_tags](#input\_redshift\_acl\_tags) | Additional tags for the dedicated Redshift network ACL | `map(string)` | `{}` | no |
 | <a name="input_redshift_dedicated_network_acl"></a> [redshift\_dedicated\_network\_acl](#input\_redshift\_dedicated\_network\_acl) | Give the Redshift subnets a dedicated network ACL instead of the VPC default one | `bool` | `false` | no |
 | <a name="input_redshift_inbound_acl_rules"></a> [redshift\_inbound\_acl\_rules](#input\_redshift\_inbound\_acl\_rules) | Inbound rules for the dedicated Redshift network ACL. null allows VPC traffic and ephemeral ports for replies, IPv6 included when enable\_ipv6 is set. NACLs are stateless, so custom rules must allow replies too. | <pre>list(object({<br/>    rule_number     = number<br/>    rule_action     = string<br/>    protocol        = string<br/>    from_port       = optional(number, 0)<br/>    to_port         = optional(number, 0)<br/>    icmp_type       = optional(number)<br/>    icmp_code       = optional(number)<br/>    cidr_block      = optional(string)<br/>    ipv6_cidr_block = optional(string)<br/>  }))</pre> | `null` | no |
@@ -309,6 +314,7 @@ No modules.
 | <a name="input_single_nat_gateway"></a> [single\_nat\_gateway](#input\_single\_nat\_gateway) | Should be true if you want to provision a single shared NAT Gateway across all of your private networks | `bool` | `true` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | A map of tags to add to all resources | `map(string)` | `{}` | no |
 | <a name="input_use_ipam_pool"></a> [use\_ipam\_pool](#input\_use\_ipam\_pool) | Determines whether IPAM pool is used for CIDR allocation | `bool` | `false` | no |
+| <a name="input_vpc_block_public_access_exclusion_mode"></a> [vpc\_block\_public\_access\_exclusion\_mode](#input\_vpc\_block\_public\_access\_exclusion\_mode) | Exclude the whole VPC from account-level VPC Block Public Access: allow-bidirectional or allow-egress. null creates no exclusion. The module never changes the account-level setting itself. | `string` | `null` | no |
 | <a name="input_vpc_endpoint_tags"></a> [vpc\_endpoint\_tags](#input\_vpc\_endpoint\_tags) | Additional tags for the VPC endpoints and the endpoint security group | `map(string)` | `{}` | no |
 | <a name="input_vpc_flow_log_permissions_boundary"></a> [vpc\_flow\_log\_permissions\_boundary](#input\_vpc\_flow\_log\_permissions\_boundary) | (Optional) The ARN of the Permissions Boundary for the VPC Flow Log IAM Role | `string` | `null` | no |
 | <a name="input_vpc_flow_log_tags"></a> [vpc\_flow\_log\_tags](#input\_vpc\_flow\_log\_tags) | (optional) Additional tags for the VPC Flow Logs | `map(string)` | `{}` | no |

@@ -1273,3 +1273,39 @@ variable "dhcp_options_tags" {
   type        = map(string)
   default     = {}
 }
+
+################################################################################
+# Block Public Access exclusions
+################################################################################
+
+variable "vpc_block_public_access_exclusion_mode" {
+  description = "Exclude the whole VPC from account-level VPC Block Public Access: allow-bidirectional or allow-egress. null creates no exclusion. The module never changes the account-level setting itself."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.vpc_block_public_access_exclusion_mode == null || contains(["allow-bidirectional", "allow-egress"], coalesce(var.vpc_block_public_access_exclusion_mode, "-"))
+    error_message = "vpc_block_public_access_exclusion_mode must be allow-bidirectional, allow-egress or null."
+  }
+}
+
+variable "public_subnets_block_public_access_exclusion_mode" {
+  description = "Exclude each public subnet from account-level VPC Block Public Access: allow-bidirectional or allow-egress. null creates no exclusions."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.public_subnets_block_public_access_exclusion_mode == null || contains(["allow-bidirectional", "allow-egress"], coalesce(var.public_subnets_block_public_access_exclusion_mode, "-"))
+    error_message = "public_subnets_block_public_access_exclusion_mode must be allow-bidirectional, allow-egress or null."
+  }
+}
+
+################################################################################
+# DNS64
+################################################################################
+
+variable "private_subnet_enable_dns64" {
+  description = "Turn on DNS64 in the IPv6 private subnets and route 64:ff9b::/96 through the NAT gateways, so IPv6-only workloads can reach IPv4-only services. Needs enable_ipv6, private_subnet_ipv6_prefixes and enable_nat_gateway."
+  type        = bool
+  default     = false
+}
