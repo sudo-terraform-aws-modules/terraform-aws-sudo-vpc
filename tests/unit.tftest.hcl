@@ -1090,3 +1090,94 @@ run "no_dedicated_network_acls_by_default" {
     error_message = "Dedicated NACLs are opt-in."
   }
 }
+
+run "gateway_endpoints_by_default" {
+  command = apply
+
+  variables {
+    enable_nat_gateway                 = true
+    one_nat_gateway_per_az             = true
+    create_database_subnet_route_table = true
+    intra_subnets                      = ["10.0.48.0/24"]
+  }
+
+  assert {
+    condition     = toset(keys(aws_vpc_endpoint.gateway)) == toset(["s3", "dynamodb"]) && length(aws_vpc_endpoint.interface) == 0
+    error_message = "S3 and DynamoDB gateway endpoints must be on by default, with no interface endpoints."
+  }
+
+  assert {
+    condition = aws_vpc_endpoint.gateway["s3"].route_table_ids == toset(concat(
+      aws_route_table.public[*].id, aws_route_table.private[*].id, aws_route_table.database[*].id, aws_route_table.intra[*].id,
+    )) && length(aws_vpc_endpoint.gateway["s3"].route_table_ids) == 8
+    error_message = "Gateway endpoints must be attached to every route table the module creates."
+  }
+}
+
+run "no_gateway_endpoints_when_empty" {
+  command = plan
+
+  variables {
+    gateway_endpoints = []
+  }
+
+  assert {
+    condition     = length(aws_vpc_endpoint.gateway) == 0
+    error_message = "gateway_endpoints = [] must create no endpoints."
+  }
+}
+
+run "rejects_unknown_gateway_endpoint" {
+  command = plan
+
+  variables {
+    gateway_endpoints = ["s3", "sqs"]
+  }
+
+  expect_failures = [var.gateway_endpoints]
+}
+
+run "interface_endpoints" {
+  command = apply
+
+  variables {
+    interface_endpoints = ["ssm", "sts"]
+  }
+
+  assert {
+    condition     = length(aws_vpc_endpoint.interface) == 2 && aws_vpc_endpoint.interface["sts"].subnet_ids == toset(aws_subnet.private[*].id) && aws_vpc_endpoint.interface["sts"].private_dns_enabled
+    error_message = "Interface endpoints must go in the private subnets with private DNS."
+  }
+
+  assert {
+    condition     = aws_vpc_endpoint.interface["ssm"].security_group_ids == toset([aws_security_group.vpc_endpoints[0].id]) && aws_vpc_security_group_ingress_rule.vpc_endpoints[0].cidr_ipv4 == "10.0.0.0/16" && aws_vpc_security_group_ingress_rule.vpc_endpoints[0].from_port == 443
+    error_message = "The endpoint security group must allow HTTPS from the VPC."
+  }
+}
+
+run "interface_endpoints_one_subnet_per_az" {
+  command = plan
+
+  variables {
+    azs                 = ["eu-west-1a", "eu-west-1b"]
+    public_subnets      = ["10.0.0.0/24", "10.0.1.0/24"]
+    private_subnets     = ["10.0.16.0/24", "10.0.17.0/24", "10.0.18.0/24", "10.0.19.0/24"]
+    interface_endpoints = ["logs"]
+  }
+
+  assert {
+    condition     = length(aws_vpc_endpoint.interface["logs"].subnet_ids) == 2
+    error_message = "Interface endpoints must use one private subnet per AZ."
+  }
+}
+
+run "rejects_interface_endpoints_without_dns_hostnames" {
+  command = plan
+
+  variables {
+    enable_dns_hostnames = false
+    interface_endpoints  = ["sts"]
+  }
+
+  expect_failures = [aws_vpc_endpoint.interface["sts"]]
+}

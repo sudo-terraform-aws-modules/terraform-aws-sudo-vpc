@@ -7,7 +7,7 @@
 
 Terraform module that creates an Amazon VPC and the network around it: public, private and database subnets across availability zones, an internet gateway, optional NAT gateways, route tables, a database subnet group and VPC flow logs. It can also create a VPN gateway and customer gateways, and it takes over the VPC's default security group and removes its rules.
 
-Given only `name`, `cidr` and `azs`, the module carves three public, three private and three database subnets, one of each per availability zone in the first three zones of `azs`. With a `/16` `cidr` each subnet is a `/24`. There is no NAT gateway, so the private and database subnets have no route to the internet. Public subnets do not give instances a public IP on launch. Flow logs capture rejected traffic into a CloudWatch log group kept for 365 days, the default security group has no rules, the default route table has no routes, and the default network ACL allows all traffic. These defaults suit a sandbox or a first environment. For production, size the subnets yourself, turn on NAT gateways (one per AZ if an AZ outage must not cut egress) and consider `flow_log_traffic_type = "ALL"` for incident investigation.
+Given only `name`, `cidr` and `azs`, the module carves three public, three private and three database subnets, one of each per availability zone in the first three zones of `azs`. With a `/16` `cidr` each subnet is a `/24`. There is no NAT gateway, so the private and database subnets have no route to the internet. Public subnets do not give instances a public IP on launch. S3 and DynamoDB gateway endpoints are attached to every route table. Flow logs capture rejected traffic into a CloudWatch log group kept for 365 days, the default security group has no rules, the default route table has no routes, and the default network ACL allows all traffic. These defaults suit a sandbox or a first environment. For production, size the subnets yourself, turn on NAT gateways (one per AZ if an AZ outage must not cut egress) and consider `flow_log_traffic_type = "ALL"` for incident investigation.
 
 ## Usage
 
@@ -43,7 +43,7 @@ See [examples/minimal](examples/minimal) and [examples/complete](examples/comple
 
 **Deletion protection.** VPCs have no deletion protection. `terraform destroy` removes the VPC with all its subnets, gateways and route tables. AWS refuses to delete a subnet while other resources, such as load balancers, RDS instances or Lambda functions, still have network interfaces in it, so remove those first.
 
-**Costs.** NAT gateways are billed per hour and per GB processed, and each one holds an Elastic IP. With `enable_nat_gateway = true` the module creates one NAT gateway for the VPC unless `single_nat_gateway` is set to `false`. Flow logs are billed for CloudWatch Logs ingestion and storage, and `flow_log_traffic_type = "ALL"` ingests far more than the default `REJECT`. Public IPv4 addresses, including those assigned through `map_public_ip_on_launch`, are billed per hour.
+**Costs.** NAT gateways are billed per hour and per GB processed, and each one holds an Elastic IP. With `enable_nat_gateway = true` the module creates one NAT gateway for the VPC unless `single_nat_gateway` is set to `false`. Flow logs are billed for CloudWatch Logs ingestion and storage, and `flow_log_traffic_type = "ALL"` ingests far more than the default `REJECT`. Public IPv4 addresses, including those assigned through `map_public_ip_on_launch`, are billed per hour. The S3 and DynamoDB gateway endpoints created by default are free. Each entry in `interface_endpoints` is billed per AZ per hour (about USD 7 per AZ per month) plus per GB.
 
 **Default route table and network ACL.** The module adopts both by default. Adopting the default route table removes every route except the local one, and adopting the default network ACL replaces its rules with `default_network_acl_ingress` and `default_network_acl_egress`. Routes or rules added to them outside Terraform are deleted on apply. Set `manage_default_route_table` or `manage_default_network_acl` to `false` to leave them alone.
 
@@ -51,7 +51,7 @@ See [examples/minimal](examples/minimal) and [examples/complete](examples/comple
 
 **Secrets in state.** The module takes no secrets. State holds network IDs, CIDR ranges, the public IPs of the NAT gateways and the IP addresses of customer gateways. Treat it as internal network documentation and keep access to it narrow.
 
-**Permissions the caller needs.** Applying needs EC2 permissions for VPCs, subnets, route tables, internet and NAT gateways, Elastic IPs, network ACLs, security groups and, if used, VPN and customer gateways. The default flow logs also need CloudWatch Logs permissions to create the log group and set its retention, and IAM permissions to create the flow log role and policy, attach them and pass the role (`iam:PassRole`). To leave IAM out, send flow logs to S3, or pass `flow_log_cloudwatch_iam_role_arn` with `create_flow_log_cloudwatch_iam_role = false`. `vpc_flow_log_permissions_boundary` sets a permissions boundary on the role the module creates.
+**Permissions the caller needs.** Applying needs EC2 permissions for VPCs, subnets, route tables, internet and NAT gateways, Elastic IPs, network ACLs, security groups, VPC endpoints and, if used, VPN and customer gateways. The default flow logs also need CloudWatch Logs permissions to create the log group and set its retention, and IAM permissions to create the flow log role and policy, attach them and pass the role (`iam:PassRole`). To leave IAM out, send flow logs to S3, or pass `flow_log_cloudwatch_iam_role_arn` with `create_flow_log_cloudwatch_iam_role = false`. `vpc_flow_log_permissions_boundary` sets a permissions boundary on the role the module creates.
 
 **Naming.** The database subnet group is named after `name`, so use a `name` that is unique in the account and region.
 
@@ -115,6 +115,7 @@ No modules.
 | [aws_route_table_association.private](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association) | resource |
 | [aws_route_table_association.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association) | resource |
 | [aws_route_table_association.redshift](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association) | resource |
+| [aws_security_group.vpc_endpoints](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
 | [aws_subnet.database](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) | resource |
 | [aws_subnet.elasticache](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) | resource |
 | [aws_subnet.intra](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) | resource |
@@ -122,7 +123,11 @@ No modules.
 | [aws_subnet.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) | resource |
 | [aws_subnet.redshift](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) | resource |
 | [aws_vpc.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc) | resource |
+| [aws_vpc_endpoint.gateway](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint) | resource |
+| [aws_vpc_endpoint.interface](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint) | resource |
 | [aws_vpc_ipv4_cidr_block_association.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_ipv4_cidr_block_association) | resource |
+| [aws_vpc_security_group_ingress_rule.vpc_endpoints](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
+| [aws_vpc_security_group_ingress_rule.vpc_endpoints_ipv6](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_vpn_gateway.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpn_gateway) | resource |
 | [aws_vpn_gateway_attachment.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpn_gateway_attachment) | resource |
 | [aws_vpn_gateway_route_propagation.intra](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpn_gateway_route_propagation) | resource |
@@ -133,6 +138,8 @@ No modules.
 | [aws_iam_policy_document.vpc_flow_log_cloudwatch](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_partition.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/partition) | data source |
 | [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
+| [aws_vpc_endpoint_service.gateway](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc_endpoint_service) | data source |
+| [aws_vpc_endpoint_service.interface](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc_endpoint_service) | data source |
 
 ## Inputs
 
@@ -217,8 +224,12 @@ No modules.
 | <a name="input_flow_log_max_aggregation_interval"></a> [flow\_log\_max\_aggregation\_interval](#input\_flow\_log\_max\_aggregation\_interval) | (optional) The maximum interval of time during which a flow of packets is captured and aggregated into a flow log record. Valid Values: `60` seconds or `600` seconds. | `number` | `600` | no |
 | <a name="input_flow_log_per_hour_partition"></a> [flow\_log\_per\_hour\_partition](#input\_flow\_log\_per\_hour\_partition) | (optional) Indicates whether to partition the flow log per hour. This reduces the cost and response time for queries. Default: false | `bool` | `false` | no |
 | <a name="input_flow_log_traffic_type"></a> [flow\_log\_traffic\_type](#input\_flow\_log\_traffic\_type) | The type of traffic to capture. Valid values: ACCEPT, REJECT, ALL. Default: REJECT | `string` | `"REJECT"` | no |
+| <a name="input_gateway_endpoints"></a> [gateway\_endpoints](#input\_gateway\_endpoints) | Gateway endpoints to create, attached to every route table the module creates. Gateway endpoints are free and keep S3 and DynamoDB traffic off NAT. Set to [] to create none. | `set(string)` | <pre>[<br/>  "s3",<br/>  "dynamodb"<br/>]</pre> | no |
 | <a name="input_igw_tags"></a> [igw\_tags](#input\_igw\_tags) | Additional tags for the internet gateway | `map(string)` | `{}` | no |
 | <a name="input_instance_tenancy"></a> [instance\_tenancy](#input\_instance\_tenancy) | A tenancy option for instances launched into the VPC | `string` | `"default"` | no |
+| <a name="input_interface_endpoint_security_group_ids"></a> [interface\_endpoint\_security\_group\_ids](#input\_interface\_endpoint\_security\_group\_ids) | Extra security groups for the interface endpoints, on top of the one the module creates that allows HTTPS from the VPC | `list(string)` | `[]` | no |
+| <a name="input_interface_endpoint_subnet_ids"></a> [interface\_endpoint\_subnet\_ids](#input\_interface\_endpoint\_subnet\_ids) | Subnets for the interface endpoints, at most one per AZ. Defaults to the private subnets, one per AZ. | `list(string)` | `null` | no |
+| <a name="input_interface_endpoints"></a> [interface\_endpoints](#input\_interface\_endpoints) | Interface endpoints to create, by service short name, for example ["ecr.api", "ecr.dkr", "ssm", "logs", "sts"]. Each one costs per AZ per hour, so none are created by default. | `set(string)` | `[]` | no |
 | <a name="input_intra_acl_tags"></a> [intra\_acl\_tags](#input\_intra\_acl\_tags) | Additional tags for the dedicated intra network ACL | `map(string)` | `{}` | no |
 | <a name="input_intra_dedicated_network_acl"></a> [intra\_dedicated\_network\_acl](#input\_intra\_dedicated\_network\_acl) | Give the intra subnets a dedicated network ACL instead of the VPC default one | `bool` | `false` | no |
 | <a name="input_intra_inbound_acl_rules"></a> [intra\_inbound\_acl\_rules](#input\_intra\_inbound\_acl\_rules) | Inbound rules for the dedicated intra network ACL. null allows VPC traffic only, IPv6 included when enable\_ipv6 is set. NACLs are stateless, so custom rules must allow replies too. | <pre>list(object({<br/>    rule_number     = number<br/>    rule_action     = string<br/>    protocol        = string<br/>    from_port       = optional(number, 0)<br/>    to_port         = optional(number, 0)<br/>    icmp_type       = optional(number)<br/>    icmp_code       = optional(number)<br/>    cidr_block      = optional(string)<br/>    ipv6_cidr_block = optional(string)<br/>  }))</pre> | `null` | no |
@@ -288,6 +299,7 @@ No modules.
 | <a name="input_single_nat_gateway"></a> [single\_nat\_gateway](#input\_single\_nat\_gateway) | Should be true if you want to provision a single shared NAT Gateway across all of your private networks | `bool` | `true` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | A map of tags to add to all resources | `map(string)` | `{}` | no |
 | <a name="input_use_ipam_pool"></a> [use\_ipam\_pool](#input\_use\_ipam\_pool) | Determines whether IPAM pool is used for CIDR allocation | `bool` | `false` | no |
+| <a name="input_vpc_endpoint_tags"></a> [vpc\_endpoint\_tags](#input\_vpc\_endpoint\_tags) | Additional tags for the VPC endpoints and the endpoint security group | `map(string)` | `{}` | no |
 | <a name="input_vpc_flow_log_permissions_boundary"></a> [vpc\_flow\_log\_permissions\_boundary](#input\_vpc\_flow\_log\_permissions\_boundary) | (Optional) The ARN of the Permissions Boundary for the VPC Flow Log IAM Role | `string` | `null` | no |
 | <a name="input_vpc_flow_log_tags"></a> [vpc\_flow\_log\_tags](#input\_vpc\_flow\_log\_tags) | (optional) Additional tags for the VPC Flow Logs | `map(string)` | `{}` | no |
 | <a name="input_vpc_tags"></a> [vpc\_tags](#input\_vpc\_tags) | Additional tags for the VPC | `map(string)` | `{}` | no |
@@ -353,6 +365,8 @@ No modules.
 | <a name="output_vgw_id"></a> [vgw\_id](#output\_vgw\_id) | VPN Gateway ID, or null when not created |
 | <a name="output_vpc_arn"></a> [vpc\_arn](#output\_vpc\_arn) | VPC ARN, or null when not created |
 | <a name="output_vpc_cidr_block"></a> [vpc\_cidr\_block](#output\_vpc\_cidr\_block) | VPC CIDR Block, or null when not created |
+| <a name="output_vpc_endpoint_ids"></a> [vpc\_endpoint\_ids](#output\_vpc\_endpoint\_ids) | VPC endpoint IDs, by service short name |
+| <a name="output_vpc_endpoints_security_group_id"></a> [vpc\_endpoints\_security\_group\_id](#output\_vpc\_endpoints\_security\_group\_id) | ID of the security group for the interface endpoints, or null when not created |
 | <a name="output_vpc_flow_log_cloudwatch_iam_role_arn"></a> [vpc\_flow\_log\_cloudwatch\_iam\_role\_arn](#output\_vpc\_flow\_log\_cloudwatch\_iam\_role\_arn) | ARN of the IAM role flow logs use to write to CloudWatch, or null when not used |
 | <a name="output_vpc_flow_log_cloudwatch_log_group_arn"></a> [vpc\_flow\_log\_cloudwatch\_log\_group\_arn](#output\_vpc\_flow\_log\_cloudwatch\_log\_group\_arn) | ARN of the flow log CloudWatch log group the module created, or null when not created |
 | <a name="output_vpc_flow_log_cloudwatch_log_group_name"></a> [vpc\_flow\_log\_cloudwatch\_log\_group\_name](#output\_vpc\_flow\_log\_cloudwatch\_log\_group\_name) | Name of the flow log CloudWatch log group the module created, or null when not created |

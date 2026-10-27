@@ -1180,3 +1180,44 @@ variable "redshift_acl_tags" {
   type        = map(string)
   default     = {}
 }
+
+################################################################################
+# VPC endpoints
+################################################################################
+
+variable "gateway_endpoints" {
+  description = "Gateway endpoints to create, attached to every route table the module creates. Gateway endpoints are free and keep S3 and DynamoDB traffic off NAT. Set to [] to create none."
+  type        = set(string)
+  default     = ["s3", "dynamodb"]
+  nullable    = false
+
+  validation {
+    condition     = alltrue([for s in var.gateway_endpoints : contains(["s3", "dynamodb"], s)])
+    error_message = "gateway_endpoints can only contain \"s3\" and \"dynamodb\"."
+  }
+}
+
+variable "interface_endpoints" {
+  description = "Interface endpoints to create, by service short name, for example [\"ecr.api\", \"ecr.dkr\", \"ssm\", \"logs\", \"sts\"]. Each one costs per AZ per hour, so none are created by default."
+  type        = set(string)
+  default     = []
+  nullable    = false
+}
+
+variable "interface_endpoint_subnet_ids" {
+  description = "Subnets for the interface endpoints, at most one per AZ. Defaults to the private subnets, one per AZ."
+  type        = list(string)
+  default     = null
+}
+
+variable "interface_endpoint_security_group_ids" {
+  description = "Extra security groups for the interface endpoints, on top of the one the module creates that allows HTTPS from the VPC"
+  type        = list(string)
+  default     = []
+}
+
+variable "vpc_endpoint_tags" {
+  description = "Additional tags for the VPC endpoints and the endpoint security group"
+  type        = map(string)
+  default     = {}
+}

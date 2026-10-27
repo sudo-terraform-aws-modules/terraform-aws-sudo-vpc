@@ -989,3 +989,122 @@ moved {
   from = aws_network_acl.database[0]
   to   = aws_network_acl.this["database"]
 }
+
+################################################################################
+# VPC endpoints
+################################################################################
+
+locals {
+  route_table_ids = concat(
+    aws_route_table.public[*].id,
+    aws_route_table.private[*].id,
+    aws_route_table.database[*].id,
+    aws_route_table.intra[*].id,
+    aws_route_table.elasticache[*].id,
+    aws_route_table.redshift[*].id,
+  )
+
+  gateway_endpoints   = local.create_vpc ? var.gateway_endpoints : toset([])
+  interface_endpoints = local.create_vpc ? var.interface_endpoints : toset([])
+
+  # Private subnets are spread across azs in order, so the first length(azs) are in distinct AZs.
+  interface_endpoint_subnet_ids = var.interface_endpoint_subnet_ids != null ? var.interface_endpoint_subnet_ids : slice(aws_subnet.private[*].id, 0, min(length(local.azs), length(aws_subnet.private)))
+}
+
+data "aws_vpc_endpoint_service" "gateway" {
+  for_each = local.gateway_endpoints
+
+  service      = each.key
+  service_type = "Gateway"
+}
+
+resource "aws_vpc_endpoint" "gateway" {
+  for_each = local.gateway_endpoints
+
+  vpc_id            = local.vpc_id
+  service_name      = data.aws_vpc_endpoint_service.gateway[each.key].service_name
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = local.route_table_ids
+
+  tags = merge(
+    { "Name" = "${var.name}-${each.key}" },
+    var.tags,
+    var.vpc_endpoint_tags,
+  )
+}
+
+data "aws_vpc_endpoint_service" "interface" {
+  for_each = local.interface_endpoints
+
+  service      = each.key
+  service_type = "Interface"
+}
+
+resource "aws_security_group" "vpc_endpoints" {
+  count = length(local.interface_endpoints) > 0 ? 1 : 0
+
+  name_prefix = "${var.name}-vpc-endpoints-"
+  description = "HTTPS from the VPC to the interface endpoints"
+  vpc_id      = local.vpc_id
+
+  tags = merge(
+    { "Name" = "${var.name}-vpc-endpoints" },
+    var.tags,
+    var.vpc_endpoint_tags,
+  )
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "vpc_endpoints" {
+  count = length(local.interface_endpoints) > 0 ? length(local.vpc_ipv4_cidrs) : 0
+
+  security_group_id = aws_security_group.vpc_endpoints[0].id
+  description       = "HTTPS from the VPC"
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  cidr_ipv4         = local.vpc_ipv4_cidrs[count.index]
+}
+
+resource "aws_vpc_security_group_ingress_rule" "vpc_endpoints_ipv6" {
+  count = length(local.interface_endpoints) > 0 && var.enable_ipv6 ? 1 : 0
+
+  security_group_id = aws_security_group.vpc_endpoints[0].id
+  description       = "HTTPS from the VPC over IPv6"
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  cidr_ipv6         = aws_vpc.this[0].ipv6_cidr_block
+}
+
+resource "aws_vpc_endpoint" "interface" {
+  for_each = local.interface_endpoints
+
+  vpc_id              = local.vpc_id
+  service_name        = data.aws_vpc_endpoint_service.interface[each.key].service_name
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = local.interface_endpoint_subnet_ids
+  security_group_ids  = concat(aws_security_group.vpc_endpoints[*].id, var.interface_endpoint_security_group_ids)
+  private_dns_enabled = true
+
+  tags = merge(
+    { "Name" = "${var.name}-${each.key}" },
+    var.tags,
+    var.vpc_endpoint_tags,
+  )
+
+  lifecycle {
+    precondition {
+      condition     = length(local.interface_endpoint_subnet_ids) > 0
+      error_message = "Interface endpoints need subnets. Create private subnets or set interface_endpoint_subnet_ids."
+    }
+
+    precondition {
+      condition     = var.enable_dns_support && var.enable_dns_hostnames
+      error_message = "Interface endpoints use private DNS, which needs enable_dns_support and enable_dns_hostnames."
+    }
+  }
+}
