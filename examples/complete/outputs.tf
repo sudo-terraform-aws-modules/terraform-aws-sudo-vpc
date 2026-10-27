@@ -42,3 +42,13 @@ output "cgw_ids" {
   description = "IDs of the customer gateways"
   value       = module.vpc.cgw_ids
 }
+
+output "intra_subnets" {
+  description = "IDs of the intra subnets"
+  value       = module.vpc.intra_subnets
+}
+
+output "vpc_endpoint_ids" {
+  description = "VPC endpoint IDs, by service"
+  value       = module.vpc.vpc_endpoint_ids
+}

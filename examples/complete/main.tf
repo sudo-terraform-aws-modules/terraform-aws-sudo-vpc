@@ -24,6 +24,13 @@ module "vpc" {
   private_subnets  = ["10.20.16.0/20", "10.20.32.0/20", "10.20.48.0/20"]
   database_subnets = ["10.20.64.0/24", "10.20.65.0/24", "10.20.66.0/24"]
 
+  # No internet route at all, for workloads that only talk to the VPC and endpoints.
+  intra_subnets = ["10.20.72.0/24", "10.20.73.0/24", "10.20.74.0/24"]
+
+  # Each gets a subnet group named after the VPC.
+  elasticache_subnets = ["10.20.80.0/24", "10.20.81.0/24", "10.20.82.0/24"]
+  redshift_subnets    = ["10.20.88.0/24", "10.20.89.0/24", "10.20.90.0/24"]
+
   map_public_ip_on_launch = false
 
   # One NAT gateway for the whole VPC keeps the example cheap. Production VPCs
@@ -38,6 +45,20 @@ module "vpc" {
   create_database_subnet_route_table = true
   create_database_nat_gateway_route  = true
   database_dedicated_network_acl     = true
+
+  # A dedicated NACL for every other tier, with the module's default rules.
+  public_dedicated_network_acl      = true
+  private_dedicated_network_acl     = true
+  intra_dedicated_network_acl       = true
+  elasticache_dedicated_network_acl = true
+  redshift_dedicated_network_acl    = true
+
+  # S3 and DynamoDB gateway endpoints are on by default. STS is here as one
+  # interface endpoint; each costs about USD 7 per AZ per month.
+  interface_endpoints = ["sts"]
+
+  enable_dhcp_options      = true
+  dhcp_options_domain_name = "example.internal"
 
   # Flow logs to a module-created CloudWatch log group. ALL captures accepted
   # traffic too, which helps incident investigation but costs more to ingest.

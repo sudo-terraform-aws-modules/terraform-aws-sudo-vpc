@@ -4,7 +4,7 @@ Project-scoped context for Claude Code and AGENTS.md-aware runtimes (Codex, Kiro
 
 ## What this repository is
 
-A Terraform module for an Amazon VPC, aligned with [sudo-terraform-module-template](https://github.com/sudo-terraform-aws-modules/sudo-terraform-module-template) and maintained by SUDO Consultants. It manages the VPC (`aws_vpc.this`) and the network around it: public, private and database subnets, internet and egress-only gateways, NAT gateways, route tables, the database subnet group and NACL, the default security group, customer and VPN gateways, the default VPC, and VPC flow logs.
+A Terraform module for an Amazon VPC, aligned with [sudo-terraform-module-template](https://github.com/sudo-terraform-aws-modules/sudo-terraform-module-template) and maintained by SUDO Consultants. It manages the VPC (`aws_vpc.this`) and the network around it: public, private, database, intra, ElastiCache and Redshift subnets, internet and egress-only gateways, NAT gateways, route tables, subnet groups, per-tier NACLs, VPC endpoints, DHCP options, Block Public Access exclusions, the default security group, route table and NACL, customer and VPN gateways, the default VPC, and VPC flow logs.
 
 ## Module specifics
 

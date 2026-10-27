@@ -5,7 +5,7 @@
 
 <img width="600" alt="SUDO x AWS" src="https://github.com/user-attachments/assets/f7044ff9-afce-4811-91c6-2f3c95635abb" />
 
-Terraform module that creates an Amazon VPC and the network around it: public, private and database subnets across availability zones, an internet gateway, optional NAT gateways, route tables, a database subnet group and VPC flow logs. It can also create a VPN gateway and customer gateways, and it takes over the VPC's default security group and removes its rules.
+Terraform module that creates an Amazon VPC and the network around it: public, private and database subnets across availability zones, an internet gateway, optional NAT gateways, route tables, a database subnet group, S3 and DynamoDB gateway endpoints and VPC flow logs. It can also create intra, ElastiCache and Redshift subnets, per-tier network ACLs, interface endpoints, DHCP options, Block Public Access exclusions, a VPN gateway and customer gateways, and it takes over the VPC's default security group and removes its rules.
 
 Given only `name`, `cidr` and `azs`, the module carves three public, three private and three database subnets, one of each per availability zone in the first three zones of `azs`. With a `/16` `cidr` each subnet is a `/24`. There is no NAT gateway, so the private and database subnets have no route to the internet. Public subnets do not give instances a public IP on launch. S3 and DynamoDB gateway endpoints are attached to every route table. Flow logs capture rejected traffic into a CloudWatch log group kept for 365 days, the default security group has no rules, the default route table has no routes, and the default network ACL allows all traffic. These defaults suit a sandbox or a first environment. For production, size the subnets yourself, turn on NAT gateways (one per AZ if an AZ outage must not cut egress) and consider `flow_log_traffic_type = "ALL"` for incident investigation.
 
@@ -35,7 +35,7 @@ module "vpc" {
 }
 ```
 
-See [examples/minimal](examples/minimal) and [examples/complete](examples/complete). The complete example adds flow logs for all traffic with one-year retention, a database route table and network ACL, a VPN gateway with route propagation, and a customer gateway.
+See [examples/minimal](examples/minimal) and [examples/complete](examples/complete). The complete example adds every subnet tier with its own network ACL, flow logs for all traffic with one-year retention, a database route table, an STS interface endpoint, DHCP options, a VPN gateway with route propagation, and a customer gateway.
 
 ## Things to know before you apply
 
