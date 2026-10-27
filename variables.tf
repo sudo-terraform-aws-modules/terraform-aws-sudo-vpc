@@ -547,11 +547,78 @@ variable "default_vpc_tags" {
   default     = {}
 }
 
-# tflint-ignore: terraform_unused_declarations # Wired up in #11.
-variable "manage_default_network_acl" {
-  description = "(optional) Default network ACL management. Default: false"
+variable "manage_default_route_table" {
+  description = "(optional) Adopt the VPC's default route table and remove every route except the local one, so subnets left on it have no path out of the VPC. Default: true"
   type        = bool
-  default     = false
+  default     = true
+}
+
+variable "default_route_table_name" {
+  description = "(optional) Name tag for the default route table. null uses \"<name>-default\". Default: null"
+  type        = string
+  default     = null
+}
+
+variable "default_route_table_tags" {
+  description = "(optional) Additional tags for the default route table"
+  type        = map(string)
+  default     = {}
+}
+
+variable "manage_default_network_acl" {
+  description = "(optional) Adopt the VPC's default network ACL and set its rules from default_network_acl_ingress and default_network_acl_egress. Every subnet without a dedicated NACL uses it. Default: true"
+  type        = bool
+  default     = true
+}
+
+variable "default_network_acl_name" {
+  description = "(optional) Name tag for the default network ACL. null uses \"<name>-default\". Default: null"
+  type        = string
+  default     = null
+}
+
+variable "default_network_acl_ingress" {
+  description = "(optional) Inbound rules for the default network ACL. NACLs are stateless, so allow return traffic for anything the subnets reach out to. An empty list denies all inbound traffic. Default: allow all IPv4 and IPv6."
+  type = list(object({
+    rule_no         = number
+    action          = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = [
+    { rule_no = 100, action = "allow", protocol = "-1", cidr_block = "0.0.0.0/0" },
+    { rule_no = 101, action = "allow", protocol = "-1", ipv6_cidr_block = "::/0" },
+  ]
+}
+
+variable "default_network_acl_egress" {
+  description = "(optional) Outbound rules for the default network ACL. Same shape as default_network_acl_ingress. An empty list denies all outbound traffic. Default: allow all IPv4 and IPv6."
+  type = list(object({
+    rule_no         = number
+    action          = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = [
+    { rule_no = 100, action = "allow", protocol = "-1", cidr_block = "0.0.0.0/0" },
+    { rule_no = 101, action = "allow", protocol = "-1", ipv6_cidr_block = "::/0" },
+  ]
+}
+
+variable "default_network_acl_tags" {
+  description = "(optional) Additional tags for the default network ACL"
+  type        = map(string)
+  default     = {}
 }
 
 

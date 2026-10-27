@@ -353,6 +353,79 @@ resource "aws_default_security_group" "this" {
 }
 
 ################################################################################
+# Default route table and network ACL
+################################################################################
+
+# Adopting the default route table with no routes leaves only the local route, so a subnet
+# that is not explicitly associated with a route table cannot reach outside the VPC.
+resource "aws_default_route_table" "this" {
+  count = local.create_vpc && var.manage_default_route_table ? 1 : 0
+
+  default_route_table_id = aws_vpc.this[0].default_route_table_id
+  route                  = []
+
+  tags = merge(
+    { "Name" = coalesce(var.default_route_table_name, "${var.name}-default") },
+    var.tags,
+    var.default_route_table_tags,
+  )
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+  }
+}
+
+resource "aws_default_network_acl" "this" {
+  count = local.create_vpc && var.manage_default_network_acl ? 1 : 0
+
+  default_network_acl_id = aws_vpc.this[0].default_network_acl_id
+
+  # Subnets join the default NACL whenever they leave another one; AWS manages that.
+  subnet_ids = null
+
+  dynamic "ingress" {
+    for_each = var.default_network_acl_ingress
+    content {
+      rule_no         = ingress.value.rule_no
+      action          = ingress.value.action
+      protocol        = ingress.value.protocol
+      from_port       = ingress.value.from_port
+      to_port         = ingress.value.to_port
+      icmp_type       = ingress.value.icmp_type
+      icmp_code       = ingress.value.icmp_code
+      cidr_block      = ingress.value.cidr_block
+      ipv6_cidr_block = ingress.value.ipv6_cidr_block
+    }
+  }
+
+  dynamic "egress" {
+    for_each = var.default_network_acl_egress
+    content {
+      rule_no         = egress.value.rule_no
+      action          = egress.value.action
+      protocol        = egress.value.protocol
+      from_port       = egress.value.from_port
+      to_port         = egress.value.to_port
+      icmp_type       = egress.value.icmp_type
+      icmp_code       = egress.value.icmp_code
+      cidr_block      = egress.value.cidr_block
+      ipv6_cidr_block = egress.value.ipv6_cidr_block
+    }
+  }
+
+  tags = merge(
+    { "Name" = coalesce(var.default_network_acl_name, "${var.name}-default") },
+    var.tags,
+    var.default_network_acl_tags,
+  )
+
+  lifecycle {
+    ignore_changes = [subnet_ids]
+  }
+}
+
+################################################################################
 # Route table association
 ################################################################################
 
