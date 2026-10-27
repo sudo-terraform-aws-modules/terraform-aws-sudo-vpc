@@ -404,3 +404,128 @@ run "vgw_propagation_one_nat_per_az" {
     error_message = "Private propagations must use the module's VPN gateway."
   }
 }
+
+# Issue #10: database route tables and network ACL.
+
+run "database_route_table_single_nat" {
+  command = apply
+
+  variables {
+    cidr                               = "10.0.0.0/16"
+    enable_nat_gateway                 = true
+    create_database_subnet_route_table = true
+    create_database_nat_gateway_route  = true
+  }
+
+  assert {
+    condition     = length(aws_route_table.database) == 1 && length(aws_route_table_association.database) == 3
+    error_message = "With a single NAT gateway there must be one database route table, associated with all three database subnets."
+  }
+
+  assert {
+    condition     = alltrue([for a in aws_route_table_association.database : a.route_table_id == aws_route_table.database[0].id])
+    error_message = "Database subnets must use the database route table, not the main one."
+  }
+
+  assert {
+    condition     = aws_route_table_association.database[*].subnet_id == aws_subnet.database[*].id
+    error_message = "Every database subnet must be associated."
+  }
+
+  assert {
+    condition     = length(aws_route.database_nat_gateway) == 1 && aws_route.database_nat_gateway[0].nat_gateway_id == aws_nat_gateway.this[0].id
+    error_message = "The database route table must route 0.0.0.0/0 through the NAT gateway."
+  }
+}
+
+run "database_route_tables_per_az_without_azs" {
+  command = apply
+
+  variables {
+    cidr                               = "10.0.0.0/16"
+    enable_nat_gateway                 = true
+    one_nat_gateway_per_az             = true
+    create_database_subnet_route_table = true
+    create_database_nat_gateway_route  = true
+  }
+
+  assert {
+    condition     = length(aws_route_table.database) == 3 && aws_route_table_association.database[*].route_table_id == aws_route_table.database[*].id
+    error_message = "With one NAT per AZ each database subnet must get its own route table, also when azs is not set."
+  }
+
+  assert {
+    condition     = aws_route.database_nat_gateway[*].nat_gateway_id == aws_nat_gateway.this[*].id
+    error_message = "Each database route table must use the NAT gateway in its own AZ."
+  }
+
+  assert {
+    condition     = aws_route_table.database[0].tags["Name"] == "unit-test-database-euw1-az1"
+    error_message = "Per-AZ database route tables must be named after the AZ the module picked."
+  }
+}
+
+run "database_route_table_internet_gateway" {
+  command = plan
+
+  variables {
+    cidr                                   = "10.0.0.0/16"
+    create_database_subnet_route_table     = true
+    create_database_internet_gateway_route = true
+  }
+
+  assert {
+    condition     = length(aws_route_table.database) == 1 && length(aws_route.database_internet_gateway) == 1 && length(aws_route_table_association.database) == 3
+    error_message = "create_database_internet_gateway_route must give one associated database route table with an internet gateway route."
+  }
+}
+
+run "no_database_route_table_by_default" {
+  command = plan
+
+  assert {
+    condition     = length(aws_route_table.database) == 0 && length(aws_route_table_association.database) == 0
+    error_message = "Database subnets must stay on the main route table unless create_database_subnet_route_table is set."
+  }
+}
+
+run "database_network_acl_default_rules" {
+  command = plan
+
+  variables {
+    database_dedicated_network_acl = true
+  }
+
+  assert {
+    condition     = length(aws_network_acl_rule.database_inbound) == 1 && length(aws_network_acl_rule.database_outbound) == 1
+    error_message = "The dedicated database NACL must not deny all traffic by default."
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.database_inbound[0].rule_action == "allow" && aws_network_acl_rule.database_inbound[0].protocol == "-1" && aws_network_acl_rule.database_outbound[0].egress
+    error_message = "Default database NACL rules must allow all traffic in and out."
+  }
+}
+
+run "database_network_acl_custom_rules" {
+  command = plan
+
+  variables {
+    cidr                           = "10.0.0.0/16"
+    database_dedicated_network_acl = true
+    database_inbound_acl_rules = [
+      { rule_number = 100, rule_action = "allow", protocol = "tcp", from_port = 5432, to_port = 5432, cidr_block = "10.0.0.0/16" },
+      { rule_number = 110, rule_action = "allow", protocol = "tcp", from_port = 1024, to_port = 65535, cidr_block = "0.0.0.0/0" },
+    ]
+  }
+
+  assert {
+    condition     = length(aws_network_acl_rule.database_inbound) == 2 && aws_network_acl_rule.database_inbound[0].from_port == 5432 && aws_network_acl_rule.database_inbound[0].cidr_block == "10.0.0.0/16"
+    error_message = "Custom inbound rules must be created as given."
+  }
+
+  assert {
+    condition     = !aws_network_acl_rule.database_inbound[0].egress && length(aws_network_acl_rule.database_outbound) == 1
+    error_message = "Inbound rules must be ingress, and outbound keeps its default."
+  }
+}

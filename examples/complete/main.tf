@@ -39,10 +39,13 @@ module "vpc" {
   enable_nat_gateway = true
   single_nat_gateway = true
 
-  # Database subnets get a subnet group named after the VPC. The database route
-  # table, its NAT route and the dedicated NACL stay off: until #10 is fixed the
-  # route table is never associated and the NACL denies all traffic.
-  create_database_subnet_group = true
+  # Database subnets get a subnet group named after the VPC, their own route
+  # table with a NAT route for patching, and a dedicated network ACL. The NACL
+  # keeps its default allow-all rules here; security groups do the filtering.
+  create_database_subnet_group       = true
+  create_database_subnet_route_table = true
+  create_database_nat_gateway_route  = true
+  database_dedicated_network_acl     = true
 
   # Flow logs to a module-created CloudWatch log group. ALL captures accepted
   # traffic too, which helps incident investigation but costs more to ingest.

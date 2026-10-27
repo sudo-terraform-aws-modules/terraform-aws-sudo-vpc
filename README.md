@@ -35,7 +35,7 @@ module "vpc" {
 }
 ```
 
-See [examples/minimal](examples/minimal) and [examples/complete](examples/complete). The complete example adds flow logs for all traffic with one-year retention, a VPN gateway and a customer gateway.
+See [examples/minimal](examples/minimal) and [examples/complete](examples/complete). The complete example adds flow logs for all traffic with one-year retention, a database route table and network ACL, a VPN gateway with route propagation, and a customer gateway.
 
 ## Things to know before you apply
 
@@ -49,7 +49,7 @@ See [examples/minimal](examples/minimal) and [examples/complete](examples/comple
 
 **Permissions the caller needs.** Applying needs EC2 permissions for VPCs, subnets, route tables, internet and NAT gateways, Elastic IPs, network ACLs, security groups and, if used, VPN and customer gateways. The default flow logs also need CloudWatch Logs permissions to create the log group and set its retention, and IAM permissions to create the flow log role and policy, attach them and pass the role (`iam:PassRole`). To leave IAM out, send flow logs to S3, or pass `flow_log_cloudwatch_iam_role_arn` with `create_flow_log_cloudwatch_iam_role = false`. `vpc_flow_log_permissions_boundary` sets a permissions boundary on the role the module creates.
 
-**Known issues.** Some features do not work as documented yet: the database route table and its NAT and internet routes, and the dedicated database network ACL (it denies all traffic). They are tracked in #10, and the defaults in #11. The database subnet group is named after `name`, so two VPCs with the same `name` in one region collide.
+**Known issues.** Safer defaults are tracked in #11. The database subnet group is named after `name`, so two VPCs with the same `name` in one region collide.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
@@ -87,6 +87,8 @@ No modules.
 | [aws_internet_gateway.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/internet_gateway) | resource |
 | [aws_nat_gateway.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/nat_gateway) | resource |
 | [aws_network_acl.database](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/network_acl) | resource |
+| [aws_network_acl_rule.database_inbound](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/network_acl_rule) | resource |
+| [aws_network_acl_rule.database_outbound](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/network_acl_rule) | resource |
 | [aws_route.database_internet_gateway](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
 | [aws_route.database_ipv6_egress](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
 | [aws_route.database_nat_gateway](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
@@ -96,6 +98,7 @@ No modules.
 | [aws_route_table.database](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table) | resource |
 | [aws_route_table.private](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table) | resource |
 | [aws_route_table.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table) | resource |
+| [aws_route_table_association.database](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association) | resource |
 | [aws_route_table_association.private](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association) | resource |
 | [aws_route_table_association.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association) | resource |
 | [aws_subnet.database](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) | resource |
@@ -130,7 +133,9 @@ No modules.
 | <a name="input_create_vpc"></a> [create\_vpc](#input\_create\_vpc) | Controls if VPC should be created (it affects almost all resources) | `bool` | `true` | no |
 | <a name="input_customer_gateway_tags"></a> [customer\_gateway\_tags](#input\_customer\_gateway\_tags) | (optional) Customer Gateway additional tags | `map(string)` | `{}` | no |
 | <a name="input_customer_gateways"></a> [customer\_gateways](#input\_customer\_gateways) | (optional) Map of customer gateways to create, keyed by a name used in the Name tag. bgp\_asn and ip\_address are required. | <pre>map(object({<br/>    bgp_asn     = string<br/>    ip_address  = string<br/>    device_name = optional(string)<br/>  }))</pre> | `{}` | no |
-| <a name="input_database_dedicated_network_acl"></a> [database\_dedicated\_network\_acl](#input\_database\_dedicated\_network\_acl) | Whether to use dedicated network ACL (not default) and custom rules for database subnets | `bool` | `false` | no |
+| <a name="input_database_dedicated_network_acl"></a> [database\_dedicated\_network\_acl](#input\_database\_dedicated\_network\_acl) | Whether to give the database subnets a dedicated network ACL with database\_inbound\_acl\_rules and database\_outbound\_acl\_rules, instead of the VPC default NACL | `bool` | `false` | no |
+| <a name="input_database_inbound_acl_rules"></a> [database\_inbound\_acl\_rules](#input\_database\_inbound\_acl\_rules) | Inbound rules for the dedicated database network ACL, used when database\_dedicated\_network\_acl is true. NACLs are stateless, so allow return traffic for anything the subnets reach out to. Set cidr\_block or ipv6\_cidr\_block on each rule. Default: allow all. | <pre>list(object({<br/>    rule_number     = number<br/>    rule_action     = string<br/>    protocol        = string<br/>    from_port       = optional(number, 0)<br/>    to_port         = optional(number, 0)<br/>    icmp_type       = optional(number)<br/>    icmp_code       = optional(number)<br/>    cidr_block      = optional(string)<br/>    ipv6_cidr_block = optional(string)<br/>  }))</pre> | <pre>[<br/>  {<br/>    "cidr_block": "0.0.0.0/0",<br/>    "protocol": "-1",<br/>    "rule_action": "allow",<br/>    "rule_number": 100<br/>  }<br/>]</pre> | no |
+| <a name="input_database_outbound_acl_rules"></a> [database\_outbound\_acl\_rules](#input\_database\_outbound\_acl\_rules) | Outbound rules for the dedicated database network ACL, used when database\_dedicated\_network\_acl is true. Same shape as database\_inbound\_acl\_rules. Default: allow all. | <pre>list(object({<br/>    rule_number     = number<br/>    rule_action     = string<br/>    protocol        = string<br/>    from_port       = optional(number, 0)<br/>    to_port         = optional(number, 0)<br/>    icmp_type       = optional(number)<br/>    icmp_code       = optional(number)<br/>    cidr_block      = optional(string)<br/>    ipv6_cidr_block = optional(string)<br/>  }))</pre> | <pre>[<br/>  {<br/>    "cidr_block": "0.0.0.0/0",<br/>    "protocol": "-1",<br/>    "rule_action": "allow",<br/>    "rule_number": 100<br/>  }<br/>]</pre> | no |
 | <a name="input_database_route_table_tags"></a> [database\_route\_table\_tags](#input\_database\_route\_table\_tags) | Additional tags for the database route tables | `map(string)` | `{}` | no |
 | <a name="input_database_subnet_assign_ipv6_address_on_creation"></a> [database\_subnet\_assign\_ipv6\_address\_on\_creation](#input\_database\_subnet\_assign\_ipv6\_address\_on\_creation) | Assign IPv6 address on database subnet, must be disabled to change IPv6 CIDRs. This is the IPv6 equivalent of map\_public\_ip\_on\_launch | `bool` | `null` | no |
 | <a name="input_database_subnet_group_name"></a> [database\_subnet\_group\_name](#input\_database\_subnet\_group\_name) | Name to be used on the database subnet group | `string` | `null` | no |

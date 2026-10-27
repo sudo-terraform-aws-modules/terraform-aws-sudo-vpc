@@ -487,17 +487,24 @@ resource "aws_db_subnet_group" "database" {
 # Database routes
 ################################################################################
 
+locals {
+  create_database_route_table = local.create_database_subnets && var.create_database_subnet_route_table
+  # One shared database route table unless each AZ has its own NAT gateway to route through.
+  single_database_route_table = local.single_nat_gateway || var.create_database_internet_gateway_route
+  database_route_table_count  = local.create_database_route_table ? (local.single_database_route_table ? 1 : length(local.database_subnets)) : 0
+}
+
 resource "aws_route_table" "database" {
-  count = var.create_vpc && var.create_database_subnet_route_table && length(var.database_subnets) > 0 ? var.single_nat_gateway || var.create_database_internet_gateway_route ? 1 : length(var.database_subnets) : 0
+  count = local.database_route_table_count
 
   vpc_id = local.vpc_id
 
   tags = merge(
     {
-      "Name" = var.single_nat_gateway || var.create_database_internet_gateway_route ? "${var.name}-${var.database_subnet_suffix}" : format(
+      "Name" = local.single_database_route_table ? "${var.name}-${var.database_subnet_suffix}" : format(
         "%s-${var.database_subnet_suffix}-%s",
         var.name,
-        element(var.azs, count.index),
+        element(local.azs, count.index),
       )
     },
     var.tags,
@@ -505,8 +512,18 @@ resource "aws_route_table" "database" {
   )
 }
 
+resource "aws_route_table_association" "database" {
+  count = local.create_database_route_table ? length(local.database_subnets) : 0
+
+  subnet_id = aws_subnet.database[count.index].id
+  route_table_id = element(
+    aws_route_table.database[*].id,
+    local.single_database_route_table ? 0 : count.index,
+  )
+}
+
 resource "aws_route" "database_internet_gateway" {
-  count = var.create_vpc && var.create_igw && var.create_database_subnet_route_table && length(var.database_subnets) > 0 && var.create_database_internet_gateway_route && false == var.create_database_nat_gateway_route ? 1 : 0
+  count = local.create_database_route_table && var.create_igw && var.create_database_internet_gateway_route && !var.create_database_nat_gateway_route ? 1 : 0
 
   route_table_id         = aws_route_table.database[0].id
   destination_cidr_block = "0.0.0.0/0"
@@ -518,9 +535,9 @@ resource "aws_route" "database_internet_gateway" {
 }
 
 resource "aws_route" "database_nat_gateway" {
-  count = var.create_vpc && var.create_database_subnet_route_table && length(var.database_subnets) > 0 && false == var.create_database_internet_gateway_route && var.create_database_nat_gateway_route && var.enable_nat_gateway ? var.single_nat_gateway ? 1 : length(var.database_subnets) : 0
+  count = local.create_database_route_table && !var.create_database_internet_gateway_route && var.create_database_nat_gateway_route && var.enable_nat_gateway ? local.database_route_table_count : 0
 
-  route_table_id         = element(aws_route_table.database[*].id, count.index)
+  route_table_id         = aws_route_table.database[count.index].id
   destination_cidr_block = "0.0.0.0/0"
   nat_gateway_id         = element(aws_nat_gateway.this[*].id, count.index)
 
@@ -530,7 +547,7 @@ resource "aws_route" "database_nat_gateway" {
 }
 
 resource "aws_route" "database_ipv6_egress" {
-  count = var.create_vpc && var.create_egress_only_igw && var.enable_ipv6 && var.create_database_subnet_route_table && length(var.database_subnets) > 0 && var.create_database_internet_gateway_route ? 1 : 0
+  count = local.create_database_route_table && var.create_egress_only_igw && var.enable_ipv6 && var.create_database_internet_gateway_route ? 1 : 0
 
   route_table_id              = aws_route_table.database[0].id
   destination_ipv6_cidr_block = "::/0"
@@ -558,4 +575,38 @@ resource "aws_network_acl" "database" {
     { "Name" = "${var.name}-${var.database_subnet_suffix}" },
     var.tags
   )
+}
+
+resource "aws_network_acl_rule" "database_inbound" {
+  count = local.create_database_network_acl ? length(var.database_inbound_acl_rules) : 0
+
+  network_acl_id = aws_network_acl.database[0].id
+
+  egress          = false
+  rule_number     = var.database_inbound_acl_rules[count.index].rule_number
+  rule_action     = var.database_inbound_acl_rules[count.index].rule_action
+  protocol        = var.database_inbound_acl_rules[count.index].protocol
+  from_port       = var.database_inbound_acl_rules[count.index].from_port
+  to_port         = var.database_inbound_acl_rules[count.index].to_port
+  icmp_type       = var.database_inbound_acl_rules[count.index].icmp_type
+  icmp_code       = var.database_inbound_acl_rules[count.index].icmp_code
+  cidr_block      = var.database_inbound_acl_rules[count.index].cidr_block
+  ipv6_cidr_block = var.database_inbound_acl_rules[count.index].ipv6_cidr_block
+}
+
+resource "aws_network_acl_rule" "database_outbound" {
+  count = local.create_database_network_acl ? length(var.database_outbound_acl_rules) : 0
+
+  network_acl_id = aws_network_acl.database[0].id
+
+  egress          = true
+  rule_number     = var.database_outbound_acl_rules[count.index].rule_number
+  rule_action     = var.database_outbound_acl_rules[count.index].rule_action
+  protocol        = var.database_outbound_acl_rules[count.index].protocol
+  from_port       = var.database_outbound_acl_rules[count.index].from_port
+  to_port         = var.database_outbound_acl_rules[count.index].to_port
+  icmp_type       = var.database_outbound_acl_rules[count.index].icmp_type
+  icmp_code       = var.database_outbound_acl_rules[count.index].icmp_code
+  cidr_block      = var.database_outbound_acl_rules[count.index].cidr_block
+  ipv6_cidr_block = var.database_outbound_acl_rules[count.index].ipv6_cidr_block
 }
