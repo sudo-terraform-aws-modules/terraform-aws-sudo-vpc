@@ -15,13 +15,19 @@ locals {
   cidr                        = var.cidr == "0.0.0.0/0" ? "172.31.0.0/16" : var.cidr
   create_vpc                  = var.create_vpc
 
-  azs     = length(var.azs) > 0 ? var.azs : slice(data.aws_availability_zones.azs.zone_ids, 0, length(local.public_subnets))
-  subnets = [for cidr_block in cidrsubnets(local.cidr, 4, 4, 4, 4) : cidrsubnets(cidr_block, 4, 4, 4)]
+  azs = length(var.azs) > 0 ? var.azs : slice(data.aws_availability_zones.azs.zone_ids, 0, length(local.public_subnets))
+  # Carving splits cidr into four blocks and each block into three subnets, 8 bits in all.
+  # A /20 gives /28 subnets, the smallest AWS allows; smaller VPCs are rejected below.
+  carve_prefix = tonumber(split("/", local.cidr)[1])
+  subnets      = try([for cidr_block in cidrsubnets(local.cidr, 4, 4, 4, 4) : cidrsubnets(cidr_block, 4, 4, 4)], [[], [], []])
+
+  # Given subnet lists are used when the VPC range is known to the caller: cidr is set, or IPAM.
+  use_given_subnets = local.max_subnet_length > 0 && (var.cidr != "0.0.0.0/0" || var.use_ipam_pool)
 
   # Create private subnets without NAT in default mode.
-  public_subnets   = local.max_subnet_length > 0 && var.cidr != "0.0.0.0/0" ? var.public_subnets : local.subnets[0]
-  private_subnets  = local.max_subnet_length > 0 && var.cidr != "0.0.0.0/0" ? var.private_subnets : local.subnets[1]
-  database_subnets = local.max_subnet_length > 0 && var.cidr != "0.0.0.0/0" ? var.database_subnets : local.subnets[2]
+  public_subnets   = local.use_given_subnets ? var.public_subnets : local.subnets[0]
+  private_subnets  = local.use_given_subnets ? var.private_subnets : local.subnets[1]
+  database_subnets = local.use_given_subnets ? var.database_subnets : local.subnets[2]
 
   enable_flow_log = local.create_vpc && var.enable_flow_log
 
@@ -65,6 +71,23 @@ resource "aws_vpc" "this" {
     var.tags,
     var.vpc_tags,
   )
+
+  lifecycle {
+    precondition {
+      condition     = local.max_subnet_length == 0 || var.cidr != "0.0.0.0/0" || var.use_ipam_pool
+      error_message = "public_subnets and private_subnets are only used when cidr is set. Set cidr to the VPC range that contains them; otherwise the module ignores them and carves 172.31.0.0/16."
+    }
+
+    precondition {
+      condition     = !var.use_ipam_pool || local.max_subnet_length > 0
+      error_message = "With use_ipam_pool = true the VPC range is only known after apply, so the module cannot carve subnets from it. Pass public_subnets and private_subnets (and database_subnets if needed) inside the IPAM range."
+    }
+
+    precondition {
+      condition     = local.use_given_subnets || var.use_ipam_pool || local.carve_prefix <= 20
+      error_message = "Automatic subnet carving needs a VPC of /20 or larger, which gives /28 subnets, the smallest AWS allows. Use a larger cidr or pass public_subnets, private_subnets and database_subnets."
+    }
+  }
 }
 
 resource "aws_vpc_ipv4_cidr_block_association" "this" {

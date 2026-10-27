@@ -39,7 +39,7 @@ See [examples/minimal](examples/minimal) and [examples/complete](examples/comple
 
 ## Things to know before you apply
 
-**Settings fixed at creation.** Changing `cidr` replaces the VPC and everything in it. Changing a subnet's CIDR or availability zone replaces that subnet, which fails while network interfaces are still attached to it. Subnets are created with `count`, so removing or reordering entries in a subnet list or in `azs` replaces every subnet after that position. Pass `cidr` whenever you pass subnet lists: with `cidr` left at its default the lists are ignored and the subnets are carved from `172.31.0.0/16` (#10).
+**Settings fixed at creation.** Changing `cidr` replaces the VPC and everything in it. Changing a subnet's CIDR or availability zone replaces that subnet, which fails while network interfaces are still attached to it. Subnets are created with `count`, so removing or reordering entries in a subnet list or in `azs` replaces every subnet after that position. Pass `cidr` whenever you pass subnet lists, and pass subnet lists when you use IPAM; the plan fails otherwise. Automatic subnet carving needs a `/20` or larger VPC.
 
 **Deletion protection.** VPCs have no deletion protection. `terraform destroy` removes the VPC with all its subnets, gateways and route tables. AWS refuses to delete a subnet while other resources, such as load balancers, RDS instances or Lambda functions, still have network interfaces in it, so remove those first.
 

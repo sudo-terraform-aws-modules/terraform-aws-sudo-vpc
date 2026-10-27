@@ -529,3 +529,68 @@ run "database_network_acl_custom_rules" {
     error_message = "Inbound rules must be ingress, and outbound keeps its default."
   }
 }
+
+# Issue #10: subnet inputs that were silently ignored.
+
+run "rejects_subnets_without_cidr" {
+  command = plan
+
+  variables {
+    public_subnets  = ["10.0.0.0/24", "10.0.1.0/24", "10.0.2.0/24"]
+    private_subnets = ["10.0.16.0/24", "10.0.17.0/24", "10.0.18.0/24"]
+  }
+
+  expect_failures = [aws_vpc.this]
+}
+
+run "rejects_ipam_without_subnets" {
+  command = plan
+
+  variables {
+    use_ipam_pool       = true
+    ipv4_ipam_pool_id   = "ipam-pool-0123456789abcdef0"
+    ipv4_netmask_length = 16
+  }
+
+  expect_failures = [aws_vpc.this]
+}
+
+run "ipam_with_given_subnets" {
+  command = plan
+
+  variables {
+    use_ipam_pool       = true
+    ipv4_ipam_pool_id   = "ipam-pool-0123456789abcdef0"
+    ipv4_netmask_length = 16
+    public_subnets      = ["10.30.0.0/24", "10.30.1.0/24", "10.30.2.0/24"]
+    private_subnets     = ["10.30.16.0/20", "10.30.32.0/20", "10.30.48.0/20"]
+  }
+
+  assert {
+    condition     = aws_subnet.private[*].cidr_block == ["10.30.16.0/20", "10.30.32.0/20", "10.30.48.0/20"]
+    error_message = "With IPAM, the given subnets must be used instead of subnets carved from 172.31.0.0/16."
+  }
+}
+
+run "rejects_vpc_too_small_to_carve" {
+  command = plan
+
+  variables {
+    cidr = "10.0.0.0/24"
+  }
+
+  expect_failures = [aws_vpc.this]
+}
+
+run "carves_smallest_supported_vpc" {
+  command = plan
+
+  variables {
+    cidr = "10.0.0.0/20"
+  }
+
+  assert {
+    condition     = aws_subnet.public[0].cidr_block == "10.0.0.0/28"
+    error_message = "A /20 VPC must be carved into /28 subnets, the smallest size AWS allows."
+  }
+}
