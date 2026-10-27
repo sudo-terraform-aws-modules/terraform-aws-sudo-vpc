@@ -33,7 +33,7 @@ module "vpc" {
 
   # Database subnets get a subnet group named after the VPC, their own route
   # table with a NAT route for patching, and a dedicated network ACL. The NACL
-  # keeps its default allow-all rules here; security groups do the filtering.
+  # default rules allow VPC traffic and replies; security groups do the rest.
   create_database_subnet_group       = true
   create_database_subnet_route_table = true
   create_database_nat_gateway_route  = true

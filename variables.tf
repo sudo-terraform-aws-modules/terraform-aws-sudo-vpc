@@ -719,53 +719,7 @@ variable "create_egress_only_igw" {
   type        = bool
   default     = true
 }
-variable "database_dedicated_network_acl" {
-  description = "Whether to give the database subnets a dedicated network ACL with database_inbound_acl_rules and database_outbound_acl_rules, instead of the VPC default NACL"
-  type        = bool
-  default     = false
-}
 
-variable "database_inbound_acl_rules" {
-  description = "Inbound rules for the dedicated database network ACL, used when database_dedicated_network_acl is true. NACLs are stateless, so allow return traffic for anything the subnets reach out to. Set cidr_block or ipv6_cidr_block on each rule. Default: allow all."
-  type = list(object({
-    rule_number     = number
-    rule_action     = string
-    protocol        = string
-    from_port       = optional(number, 0)
-    to_port         = optional(number, 0)
-    icmp_type       = optional(number)
-    icmp_code       = optional(number)
-    cidr_block      = optional(string)
-    ipv6_cidr_block = optional(string)
-  }))
-  default = [{
-    rule_number = 100
-    rule_action = "allow"
-    protocol    = "-1"
-    cidr_block  = "0.0.0.0/0"
-  }]
-}
-
-variable "database_outbound_acl_rules" {
-  description = "Outbound rules for the dedicated database network ACL, used when database_dedicated_network_acl is true. Same shape as database_inbound_acl_rules. Default: allow all."
-  type = list(object({
-    rule_number     = number
-    rule_action     = string
-    protocol        = string
-    from_port       = optional(number, 0)
-    to_port         = optional(number, 0)
-    icmp_type       = optional(number)
-    icmp_code       = optional(number)
-    cidr_block      = optional(string)
-    ipv6_cidr_block = optional(string)
-  }))
-  default = [{
-    rule_number = 100
-    rule_action = "allow"
-    protocol    = "-1"
-    cidr_block  = "0.0.0.0/0"
-  }]
-}
 
 ################################################################################
 # Intra subnets
@@ -955,6 +909,274 @@ variable "create_redshift_subnet_route_table" {
 
 variable "redshift_route_table_tags" {
   description = "Additional tags for the Redshift route table"
+  type        = map(string)
+  default     = {}
+}
+
+################################################################################
+# Network ACLs
+################################################################################
+
+variable "public_dedicated_network_acl" {
+  description = "Give the public subnets a dedicated network ACL instead of the VPC default one"
+  type        = bool
+  default     = false
+}
+
+variable "public_inbound_acl_rules" {
+  description = "Inbound rules for the dedicated public network ACL. null allows VPC traffic, HTTP and HTTPS from anywhere, and ephemeral ports for replies, IPv6 included when enable_ipv6 is set. NACLs are stateless, so custom rules must allow replies too."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "public_outbound_acl_rules" {
+  description = "Outbound rules for the dedicated public network ACL. null allows all traffic."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "public_acl_tags" {
+  description = "Additional tags for the dedicated public network ACL"
+  type        = map(string)
+  default     = {}
+}
+
+variable "private_dedicated_network_acl" {
+  description = "Give the private subnets a dedicated network ACL instead of the VPC default one"
+  type        = bool
+  default     = false
+}
+
+variable "private_inbound_acl_rules" {
+  description = "Inbound rules for the dedicated private network ACL. null allows VPC traffic and ephemeral ports for replies, IPv6 included when enable_ipv6 is set. NACLs are stateless, so custom rules must allow replies too."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "private_outbound_acl_rules" {
+  description = "Outbound rules for the dedicated private network ACL. null allows all traffic."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "private_acl_tags" {
+  description = "Additional tags for the dedicated private network ACL"
+  type        = map(string)
+  default     = {}
+}
+
+variable "database_dedicated_network_acl" {
+  description = "Give the database subnets a dedicated network ACL instead of the VPC default one"
+  type        = bool
+  default     = false
+}
+
+variable "database_inbound_acl_rules" {
+  description = "Inbound rules for the dedicated database network ACL. null allows VPC traffic and ephemeral ports for replies, IPv6 included when enable_ipv6 is set. NACLs are stateless, so custom rules must allow replies too."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "database_outbound_acl_rules" {
+  description = "Outbound rules for the dedicated database network ACL. null allows all traffic."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "database_acl_tags" {
+  description = "Additional tags for the dedicated database network ACL"
+  type        = map(string)
+  default     = {}
+}
+
+variable "intra_dedicated_network_acl" {
+  description = "Give the intra subnets a dedicated network ACL instead of the VPC default one"
+  type        = bool
+  default     = false
+}
+
+variable "intra_inbound_acl_rules" {
+  description = "Inbound rules for the dedicated intra network ACL. null allows VPC traffic only, IPv6 included when enable_ipv6 is set. NACLs are stateless, so custom rules must allow replies too."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "intra_outbound_acl_rules" {
+  description = "Outbound rules for the dedicated intra network ACL. null allows VPC traffic only."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "intra_acl_tags" {
+  description = "Additional tags for the dedicated intra network ACL"
+  type        = map(string)
+  default     = {}
+}
+
+variable "elasticache_dedicated_network_acl" {
+  description = "Give the ElastiCache subnets a dedicated network ACL instead of the VPC default one"
+  type        = bool
+  default     = false
+}
+
+variable "elasticache_inbound_acl_rules" {
+  description = "Inbound rules for the dedicated ElastiCache network ACL. null allows VPC traffic and ephemeral ports for replies, IPv6 included when enable_ipv6 is set. NACLs are stateless, so custom rules must allow replies too."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "elasticache_outbound_acl_rules" {
+  description = "Outbound rules for the dedicated ElastiCache network ACL. null allows all traffic."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "elasticache_acl_tags" {
+  description = "Additional tags for the dedicated ElastiCache network ACL"
+  type        = map(string)
+  default     = {}
+}
+
+variable "redshift_dedicated_network_acl" {
+  description = "Give the Redshift subnets a dedicated network ACL instead of the VPC default one"
+  type        = bool
+  default     = false
+}
+
+variable "redshift_inbound_acl_rules" {
+  description = "Inbound rules for the dedicated Redshift network ACL. null allows VPC traffic and ephemeral ports for replies, IPv6 included when enable_ipv6 is set. NACLs are stateless, so custom rules must allow replies too."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "redshift_outbound_acl_rules" {
+  description = "Outbound rules for the dedicated Redshift network ACL. null allows all traffic."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "redshift_acl_tags" {
+  description = "Additional tags for the dedicated Redshift network ACL"
   type        = map(string)
   default     = {}
 }

@@ -10,7 +10,7 @@ A Terraform module for an Amazon VPC, aligned with [sudo-terraform-module-templa
 
 - Version floors are Terraform `>= 1.3.0` and AWS provider `>= 6.0`, with no upper bound. They were raised from 0.13 and `>= 3.67` in #9. Raising either again is a breaking change.
 - `name`, `azs` and `cidr` are required (`cidr` unless IPAM supplies the range). AZs are never looked up, so a new AZ cannot move subnets. Without subnet lists the module carves one subnet per tier per AZ, in the first three of `azs`, from `cidr`. Changing `cidr` or the subnet lists replaces subnets.
-- Checkov skips in `checkov.yaml` each link the issue that owns the fix. Remove a skip in the same PR that fixes its finding. Do not add a skip without a linked issue or a documented false positive.
+- Checkov skips in `checkov.yaml` each link the issue that owns the fix. Remove a skip in the same PR that fixes its finding. Do not add a skip without a linked issue or a documented false positive. A false positive on a single resource is skipped inline (`# checkov:skip=<id>:<reason>`) so it cannot hide the same check elsewhere.
 - `tflint-ignore` comments link an issue in the same way and are removed when that issue lands.
 - Add a unit test with every fix, and add the feature to `examples/complete` when it is consumer-facing.
 - `aws_vpc.this` has preconditions for subnet inputs the module cannot use: lists without `cidr`, IPAM without lists, and carving a VPC smaller than `/20`. Keep them in step with the subnet selection locals.

@@ -661,59 +661,6 @@ resource "aws_route" "database_ipv6_egress" {
     create = "5m"
   }
 }
-################################################################################
-# Database Network ACLs
-################################################################################
-
-locals {
-  create_database_network_acl = local.create_database_subnets && var.database_dedicated_network_acl
-}
-
-resource "aws_network_acl" "database" {
-  count = local.create_database_network_acl ? 1 : 0
-
-  vpc_id     = local.vpc_id
-  subnet_ids = aws_subnet.database[*].id
-
-  tags = merge(
-    { "Name" = "${var.name}-${var.database_subnet_suffix}" },
-    var.tags
-  )
-}
-
-resource "aws_network_acl_rule" "database_inbound" {
-  count = local.create_database_network_acl ? length(var.database_inbound_acl_rules) : 0
-
-  network_acl_id = aws_network_acl.database[0].id
-
-  egress          = false
-  rule_number     = var.database_inbound_acl_rules[count.index].rule_number
-  rule_action     = var.database_inbound_acl_rules[count.index].rule_action
-  protocol        = var.database_inbound_acl_rules[count.index].protocol
-  from_port       = var.database_inbound_acl_rules[count.index].from_port
-  to_port         = var.database_inbound_acl_rules[count.index].to_port
-  icmp_type       = var.database_inbound_acl_rules[count.index].icmp_type
-  icmp_code       = var.database_inbound_acl_rules[count.index].icmp_code
-  cidr_block      = var.database_inbound_acl_rules[count.index].cidr_block
-  ipv6_cidr_block = var.database_inbound_acl_rules[count.index].ipv6_cidr_block
-}
-
-resource "aws_network_acl_rule" "database_outbound" {
-  count = local.create_database_network_acl ? length(var.database_outbound_acl_rules) : 0
-
-  network_acl_id = aws_network_acl.database[0].id
-
-  egress          = true
-  rule_number     = var.database_outbound_acl_rules[count.index].rule_number
-  rule_action     = var.database_outbound_acl_rules[count.index].rule_action
-  protocol        = var.database_outbound_acl_rules[count.index].protocol
-  from_port       = var.database_outbound_acl_rules[count.index].from_port
-  to_port         = var.database_outbound_acl_rules[count.index].to_port
-  icmp_type       = var.database_outbound_acl_rules[count.index].icmp_type
-  icmp_code       = var.database_outbound_acl_rules[count.index].icmp_code
-  cidr_block      = var.database_outbound_acl_rules[count.index].cidr_block
-  ipv6_cidr_block = var.database_outbound_acl_rules[count.index].ipv6_cidr_block
-}
 
 ################################################################################
 # Intra subnets
@@ -901,4 +848,144 @@ resource "aws_route_table_association" "redshift" {
 
   subnet_id      = aws_subnet.redshift[count.index].id
   route_table_id = aws_route_table.redshift[0].id
+}
+
+################################################################################
+# Network ACLs
+# One dedicated NACL per tier, opt-in. Without one a tier uses the default NACL.
+################################################################################
+
+locals {
+  vpc_ipv4_cidrs = local.create_vpc ? concat([aws_vpc.this[0].cidr_block], var.secondary_cidr_blocks) : []
+  nacl_ipv6      = local.create_vpc && var.enable_ipv6
+
+  # Building blocks for the default tier rules. NACLs are stateless, so ephemeral ports
+  # must be open inbound for replies to anything the subnets reach out to.
+  nacl_rules_from_vpc = concat(
+    [for i, cidr in local.vpc_ipv4_cidrs : { rule_number = 100 + i, rule_action = "allow", protocol = "-1", from_port = 0, to_port = 0, cidr_block = cidr, ipv6_cidr_block = null }],
+    local.nacl_ipv6 ? [{ rule_number = 110, rule_action = "allow", protocol = "-1", from_port = 0, to_port = 0, cidr_block = null, ipv6_cidr_block = aws_vpc.this[0].ipv6_cidr_block }] : [],
+  )
+  nacl_rules_ephemeral = concat(
+    [
+      { rule_number = 200, rule_action = "allow", protocol = "tcp", from_port = 1024, to_port = 65535, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null },
+      { rule_number = 210, rule_action = "allow", protocol = "udp", from_port = 1024, to_port = 65535, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null },
+    ],
+    local.nacl_ipv6 ? [
+      { rule_number = 220, rule_action = "allow", protocol = "tcp", from_port = 1024, to_port = 65535, cidr_block = null, ipv6_cidr_block = "::/0" },
+      { rule_number = 230, rule_action = "allow", protocol = "udp", from_port = 1024, to_port = 65535, cidr_block = null, ipv6_cidr_block = "::/0" },
+    ] : [],
+  )
+  nacl_rules_web = concat(
+    [
+      { rule_number = 300, rule_action = "allow", protocol = "tcp", from_port = 80, to_port = 80, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null },
+      { rule_number = 310, rule_action = "allow", protocol = "tcp", from_port = 443, to_port = 443, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null },
+    ],
+    local.nacl_ipv6 ? [
+      { rule_number = 320, rule_action = "allow", protocol = "tcp", from_port = 80, to_port = 80, cidr_block = null, ipv6_cidr_block = "::/0" },
+      { rule_number = 330, rule_action = "allow", protocol = "tcp", from_port = 443, to_port = 443, cidr_block = null, ipv6_cidr_block = "::/0" },
+    ] : [],
+  )
+  nacl_rules_all_out = concat(
+    [{ rule_number = 100, rule_action = "allow", protocol = "-1", from_port = 0, to_port = 0, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null }],
+    local.nacl_ipv6 ? [{ rule_number = 110, rule_action = "allow", protocol = "-1", from_port = 0, to_port = 0, cidr_block = null, ipv6_cidr_block = "::/0" }] : [],
+  )
+
+  # Public: web traffic in from anywhere. Private tiers: VPC traffic and replies only.
+  # Intra: VPC traffic only, both ways.
+  network_acls = {
+    public = {
+      create   = var.public_dedicated_network_acl && length(aws_subnet.public) > 0
+      subnets  = aws_subnet.public[*].id
+      suffix   = var.public_subnet_suffix
+      tags     = var.public_acl_tags
+      inbound  = var.public_inbound_acl_rules != null ? var.public_inbound_acl_rules : concat(local.nacl_rules_from_vpc, local.nacl_rules_ephemeral, local.nacl_rules_web)
+      outbound = var.public_outbound_acl_rules != null ? var.public_outbound_acl_rules : local.nacl_rules_all_out
+    }
+    private = {
+      create   = var.private_dedicated_network_acl && length(aws_subnet.private) > 0
+      subnets  = aws_subnet.private[*].id
+      suffix   = var.private_subnet_suffix
+      tags     = var.private_acl_tags
+      inbound  = var.private_inbound_acl_rules != null ? var.private_inbound_acl_rules : concat(local.nacl_rules_from_vpc, local.nacl_rules_ephemeral)
+      outbound = var.private_outbound_acl_rules != null ? var.private_outbound_acl_rules : local.nacl_rules_all_out
+    }
+    database = {
+      create   = var.database_dedicated_network_acl && length(aws_subnet.database) > 0
+      subnets  = aws_subnet.database[*].id
+      suffix   = var.database_subnet_suffix
+      tags     = var.database_acl_tags
+      inbound  = var.database_inbound_acl_rules != null ? var.database_inbound_acl_rules : concat(local.nacl_rules_from_vpc, local.nacl_rules_ephemeral)
+      outbound = var.database_outbound_acl_rules != null ? var.database_outbound_acl_rules : local.nacl_rules_all_out
+    }
+    intra = {
+      create   = var.intra_dedicated_network_acl && length(aws_subnet.intra) > 0
+      subnets  = aws_subnet.intra[*].id
+      suffix   = var.intra_subnet_suffix
+      tags     = var.intra_acl_tags
+      inbound  = var.intra_inbound_acl_rules != null ? var.intra_inbound_acl_rules : local.nacl_rules_from_vpc
+      outbound = var.intra_outbound_acl_rules != null ? var.intra_outbound_acl_rules : local.nacl_rules_from_vpc
+    }
+    elasticache = {
+      create   = var.elasticache_dedicated_network_acl && length(aws_subnet.elasticache) > 0
+      subnets  = aws_subnet.elasticache[*].id
+      suffix   = var.elasticache_subnet_suffix
+      tags     = var.elasticache_acl_tags
+      inbound  = var.elasticache_inbound_acl_rules != null ? var.elasticache_inbound_acl_rules : concat(local.nacl_rules_from_vpc, local.nacl_rules_ephemeral)
+      outbound = var.elasticache_outbound_acl_rules != null ? var.elasticache_outbound_acl_rules : local.nacl_rules_all_out
+    }
+    redshift = {
+      create   = var.redshift_dedicated_network_acl && length(aws_subnet.redshift) > 0
+      subnets  = aws_subnet.redshift[*].id
+      suffix   = var.redshift_subnet_suffix
+      tags     = var.redshift_acl_tags
+      inbound  = var.redshift_inbound_acl_rules != null ? var.redshift_inbound_acl_rules : concat(local.nacl_rules_from_vpc, local.nacl_rules_ephemeral)
+      outbound = var.redshift_outbound_acl_rules != null ? var.redshift_outbound_acl_rules : local.nacl_rules_all_out
+    }
+  }
+
+  created_network_acls = { for tier, acl in local.network_acls : tier => acl if acl.create }
+
+  network_acl_rules = merge(flatten([
+    for tier, acl in local.created_network_acls : [
+      { for rule in acl.inbound : "${tier}-ingress-${rule.rule_number}" => merge(rule, { tier = tier, egress = false }) },
+      { for rule in acl.outbound : "${tier}-egress-${rule.rule_number}" => merge(rule, { tier = tier, egress = true }) },
+    ]
+  ])...)
+}
+
+resource "aws_network_acl" "this" {
+  # checkov:skip=CKV2_AWS_1:False positive. Checkov cannot follow subnet_ids through for_each; each NACL is created only when its tier has subnets, and holds them.
+  for_each = local.created_network_acls
+
+  vpc_id     = local.vpc_id
+  subnet_ids = each.value.subnets
+
+  tags = merge(
+    { "Name" = "${var.name}-${each.value.suffix}" },
+    var.tags,
+    each.value.tags,
+  )
+}
+
+resource "aws_network_acl_rule" "this" {
+  for_each = local.network_acl_rules
+
+  network_acl_id = aws_network_acl.this[each.value.tier].id
+
+  egress          = each.value.egress
+  rule_number     = each.value.rule_number
+  rule_action     = each.value.rule_action
+  protocol        = each.value.protocol
+  from_port       = each.value.from_port
+  to_port         = each.value.to_port
+  icmp_type       = try(each.value.icmp_type, null)
+  icmp_code       = try(each.value.icmp_code, null)
+  cidr_block      = each.value.cidr_block
+  ipv6_cidr_block = each.value.ipv6_cidr_block
+}
+
+# The database NACL was the only one before per-tier NACLs.
+moved {
+  from = aws_network_acl.database[0]
+  to   = aws_network_acl.this["database"]
 }

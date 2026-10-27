@@ -516,13 +516,23 @@ run "database_network_acl_default_rules" {
   }
 
   assert {
-    condition     = length(aws_network_acl_rule.database_inbound) == 1 && length(aws_network_acl_rule.database_outbound) == 1
-    error_message = "The dedicated database NACL must not deny all traffic by default."
+    condition     = aws_network_acl.this["database"].subnet_ids == toset(aws_subnet.database[*].id)
+    error_message = "The dedicated database NACL must hold the database subnets."
   }
 
   assert {
-    condition     = aws_network_acl_rule.database_inbound[0].rule_action == "allow" && aws_network_acl_rule.database_inbound[0].protocol == "-1" && aws_network_acl_rule.database_outbound[0].egress
-    error_message = "Default database NACL rules must allow all traffic in and out."
+    condition     = aws_network_acl_rule.this["database-ingress-100"].cidr_block == "10.0.0.0/16" && aws_network_acl_rule.this["database-ingress-100"].protocol == "-1"
+    error_message = "The database NACL must allow all traffic from the VPC."
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["database-ingress-200"].from_port == 1024 && aws_network_acl_rule.this["database-ingress-200"].cidr_block == "0.0.0.0/0" && !contains(keys(aws_network_acl_rule.this), "database-ingress-300")
+    error_message = "The database NACL must allow replies on ephemeral ports, and nothing else from outside the VPC."
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["database-egress-100"].egress && aws_network_acl_rule.this["database-egress-100"].cidr_block == "0.0.0.0/0"
+    error_message = "The database NACL must allow all outbound traffic."
   }
 }
 
@@ -530,7 +540,6 @@ run "database_network_acl_custom_rules" {
   command = plan
 
   variables {
-    cidr                           = "10.0.0.0/16"
     database_dedicated_network_acl = true
     database_inbound_acl_rules = [
       { rule_number = 100, rule_action = "allow", protocol = "tcp", from_port = 5432, to_port = 5432, cidr_block = "10.0.0.0/16" },
@@ -539,12 +548,12 @@ run "database_network_acl_custom_rules" {
   }
 
   assert {
-    condition     = length(aws_network_acl_rule.database_inbound) == 2 && aws_network_acl_rule.database_inbound[0].from_port == 5432 && aws_network_acl_rule.database_inbound[0].cidr_block == "10.0.0.0/16"
-    error_message = "Custom inbound rules must be created as given."
+    condition     = length([for k in keys(aws_network_acl_rule.this) : k if startswith(k, "database-ingress-")]) == 2 && aws_network_acl_rule.this["database-ingress-100"].from_port == 5432
+    error_message = "Custom inbound rules must replace the defaults."
   }
 
   assert {
-    condition     = !aws_network_acl_rule.database_inbound[0].egress && length(aws_network_acl_rule.database_outbound) == 1
+    condition     = !aws_network_acl_rule.this["database-ingress-100"].egress && aws_network_acl_rule.this["database-egress-100"].egress
     error_message = "Inbound rules must be ingress, and outbound keeps its default."
   }
 }
@@ -1001,5 +1010,83 @@ run "no_elasticache_or_redshift_by_default" {
   assert {
     condition     = length(aws_subnet.elasticache) == 0 && length(aws_subnet.redshift) == 0 && length(aws_elasticache_subnet_group.elasticache) == 0 && length(aws_redshift_subnet_group.redshift) == 0
     error_message = "ElastiCache and Redshift subnets are never carved."
+  }
+}
+
+run "public_network_acl_default_rules" {
+  command = plan
+
+  variables {
+    public_dedicated_network_acl = true
+    secondary_cidr_blocks        = ["100.64.0.0/16"]
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["public-ingress-310"].from_port == 443 && aws_network_acl_rule.this["public-ingress-300"].from_port == 80 && aws_network_acl_rule.this["public-ingress-300"].cidr_block == "0.0.0.0/0"
+    error_message = "The public NACL must allow HTTP and HTTPS from anywhere."
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["public-ingress-101"].cidr_block == "100.64.0.0/16"
+    error_message = "VPC rules must cover secondary CIDR blocks."
+  }
+
+  assert {
+    condition     = length(aws_network_acl.this) == 1 && contains(keys(aws_network_acl.this), "public")
+    error_message = "Only the tiers asked for get a dedicated NACL."
+  }
+}
+
+run "intra_network_acl_stays_inside_vpc" {
+  command = plan
+
+  variables {
+    intra_subnets               = ["10.0.48.0/24"]
+    intra_dedicated_network_acl = true
+  }
+
+  assert {
+    condition     = toset([for k, r in aws_network_acl_rule.this : r.cidr_block]) == toset(["10.0.0.0/16"])
+    error_message = "The intra NACL must only allow VPC traffic."
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["intra-egress-100"].egress && aws_network_acl_rule.this["intra-ingress-100"].protocol == "-1"
+    error_message = "The intra NACL must allow VPC traffic both ways."
+  }
+}
+
+run "network_acls_with_ipv6" {
+  command = apply
+
+  variables {
+    enable_ipv6                    = true
+    private_dedicated_network_acl  = true
+    redshift_subnets               = ["10.0.80.0/24"]
+    redshift_dedicated_network_acl = true
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["private-ingress-110"].ipv6_cidr_block == "2600:1f18:abcd:1200::/56" && aws_network_acl_rule.this["private-ingress-220"].ipv6_cidr_block == "::/0"
+    error_message = "With IPv6 on, the private NACL must allow VPC IPv6 traffic and IPv6 replies."
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["private-egress-110"].ipv6_cidr_block == "::/0" && aws_network_acl.this["redshift"].subnet_ids == toset(aws_subnet.redshift[*].id)
+    error_message = "IPv6 egress must be allowed, and the Redshift NACL must hold its subnets."
+  }
+}
+
+run "no_dedicated_network_acls_by_default" {
+  command = plan
+
+  variables {
+    intra_subnets       = ["10.0.48.0/24"]
+    elasticache_subnets = ["10.0.64.0/24"]
+  }
+
+  assert {
+    condition     = length(aws_network_acl.this) == 0 && length(aws_network_acl_rule.this) == 0
+    error_message = "Dedicated NACLs are opt-in."
   }
 }
