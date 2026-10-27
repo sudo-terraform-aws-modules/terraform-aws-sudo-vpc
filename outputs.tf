@@ -147,3 +147,88 @@ output "database_subnet_group_name" {
   description = "Name of database subnet group, or null when not created"
   value       = try(aws_db_subnet_group.database[0].name, null)
 }
+
+output "database_subnet_arns" {
+  description = "Database subnet ARNs"
+  value       = aws_subnet.database[*].arn
+}
+
+output "database_subnets_cidr_blocks" {
+  description = "Database subnet CIDR blocks"
+  value       = compact(aws_subnet.database[*].cidr_block)
+}
+
+output "database_subnets_ipv6_cidr_blocks" {
+  description = "Database subnet IPv6 CIDR blocks"
+  value       = compact(aws_subnet.database[*].ipv6_cidr_block)
+}
+
+output "database_route_table_ids" {
+  description = "Database route table IDs"
+  value       = aws_route_table.database[*].id
+}
+
+output "azs" {
+  description = "Availability zones the subnets are spread across"
+  value       = var.azs
+}
+
+output "vpc_ipv6_cidr_block" {
+  description = "VPC IPv6 CIDR block, or null when not created or IPv6 is off"
+  value       = try(aws_vpc.this[0].ipv6_cidr_block, null)
+}
+
+output "igw_id" {
+  description = "Internet gateway ID, or null when not created"
+  value       = try(aws_internet_gateway.this[0].id, null)
+}
+
+output "igw_arn" {
+  description = "Internet gateway ARN, or null when not created"
+  value       = try(aws_internet_gateway.this[0].arn, null)
+}
+
+output "egress_only_internet_gateway_id" {
+  description = "Egress-only internet gateway ID, or null when not created"
+  value       = try(aws_egress_only_internet_gateway.this[0].id, null)
+}
+
+output "natgw_ids" {
+  description = "NAT gateway IDs"
+  value       = aws_nat_gateway.this[*].id
+}
+
+output "nat_ids" {
+  description = "Elastic IP allocation IDs created for the NAT gateways"
+  value       = aws_eip.nat[*].id
+}
+
+output "nat_public_ips" {
+  description = "Public IPs of the NAT gateways"
+  value       = aws_nat_gateway.this[*].public_ip
+}
+
+output "vpc_flow_log_id" {
+  description = "Flow log ID, or null when not created"
+  value       = try(aws_flow_log.default[0].id, null)
+}
+
+output "vpc_flow_log_destination_arn" {
+  description = "ARN of the flow log destination, or null when flow logs are off"
+  value       = local.enable_flow_log ? local.flow_log_destination_arn : null
+}
+
+output "vpc_flow_log_cloudwatch_iam_role_arn" {
+  description = "ARN of the IAM role flow logs use to write to CloudWatch, or null when not used"
+  value       = local.enable_flow_log ? local.flow_log_iam_role_arn : null
+}
+
+output "vpc_flow_log_cloudwatch_log_group_name" {
+  description = "Name of the flow log CloudWatch log group the module created, or null when not created"
+  value       = try(aws_cloudwatch_log_group.flow_log[0].name, null)
+}
+
+output "vpc_flow_log_cloudwatch_log_group_arn" {
+  description = "ARN of the flow log CloudWatch log group the module created, or null when not created"
+  value       = try(aws_cloudwatch_log_group.flow_log[0].arn, null)
+}

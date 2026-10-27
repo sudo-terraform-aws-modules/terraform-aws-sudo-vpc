@@ -11,6 +11,7 @@ All notable changes to this module are documented here. The format follows [Keep
 - `examples/minimal` and `examples/complete`, replacing `example/`, which was a module call with no provider. The complete example covers NAT, flow logs, the database subnet group, route table and network ACL, the default security group, and VPN gateways with route propagation (#10, #12).
 - `database_inbound_acl_rules` and `database_outbound_acl_rules` for the dedicated database network ACL. Both default to one rule that allows all traffic, as upstream does. NACLs are stateless, so tighter rules must also allow return traffic for anything the database subnets reach out to (#10).
 - `manage_default_route_table`, `default_route_table_name` and `default_route_table_tags`, and `default_network_acl_name`, `default_network_acl_ingress`, `default_network_acl_egress` and `default_network_acl_tags`, for managing the VPC default route table and default network ACL (#11).
+- Outputs for the internet gateway, egress-only gateway, NAT gateways and their public IPs, database subnet ARNs and CIDRs, database route tables, the AZs in use, the VPC IPv6 CIDR, and the flow log, its destination, IAM role and log group (#13).
 
 ### Changed
 

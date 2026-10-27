@@ -883,3 +883,48 @@ run "no_private_ipv6_egress_without_ipv6" {
     error_message = "Without IPv6 there must be no egress-only gateway or IPv6 routes."
   }
 }
+
+# Issue #13: outputs.
+
+run "outputs" {
+  command = apply
+
+  variables {
+    enable_nat_gateway                 = true
+    single_nat_gateway                 = true
+    create_database_subnet_route_table = true
+  }
+
+  assert {
+    condition     = output.igw_id == aws_internet_gateway.this[0].id && output.natgw_ids == aws_nat_gateway.this[*].id && length(output.nat_public_ips) == 1
+    error_message = "Gateway outputs must expose the IGW and NAT gateways."
+  }
+
+  assert {
+    condition     = output.database_subnets_cidr_blocks == tolist(["10.0.32.0/24", "10.0.33.0/24", "10.0.34.0/24"]) && length(output.database_subnet_arns) == 3 && output.database_route_table_ids == aws_route_table.database[*].id
+    error_message = "Database outputs must expose the subnets and route tables."
+  }
+
+  assert {
+    condition     = output.azs == tolist(["eu-west-1a", "eu-west-1b", "eu-west-1c"])
+    error_message = "azs output must return the AZs in use."
+  }
+
+  assert {
+    condition     = output.vpc_flow_log_cloudwatch_log_group_arn == aws_cloudwatch_log_group.flow_log[0].arn && output.vpc_flow_log_destination_arn == aws_cloudwatch_log_group.flow_log[0].arn && output.vpc_flow_log_id == aws_flow_log.default[0].id
+    error_message = "Flow log outputs must expose the flow log and its log group."
+  }
+}
+
+run "outputs_null_without_vpc" {
+  command = plan
+
+  variables {
+    create_vpc = false
+  }
+
+  assert {
+    condition     = output.igw_id == null && output.vpc_flow_log_id == null && output.vpc_flow_log_destination_arn == null && output.natgw_ids == []
+    error_message = "Outputs must be null or empty when nothing is created."
+  }
+}

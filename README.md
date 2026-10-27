@@ -235,11 +235,16 @@ No modules.
 
 | Name | Description |
 | ---- | ----------- |
+| <a name="output_azs"></a> [azs](#output\_azs) | Availability zones the subnets are spread across |
 | <a name="output_cgw_arns"></a> [cgw\_arns](#output\_cgw\_arns) | Customer Gateway ARNs list |
 | <a name="output_cgw_ids"></a> [cgw\_ids](#output\_cgw\_ids) | Customer Gateway ID List |
+| <a name="output_database_route_table_ids"></a> [database\_route\_table\_ids](#output\_database\_route\_table\_ids) | Database route table IDs |
+| <a name="output_database_subnet_arns"></a> [database\_subnet\_arns](#output\_database\_subnet\_arns) | Database subnet ARNs |
 | <a name="output_database_subnet_group"></a> [database\_subnet\_group](#output\_database\_subnet\_group) | ID of database subnet group, or null when not created |
 | <a name="output_database_subnet_group_name"></a> [database\_subnet\_group\_name](#output\_database\_subnet\_group\_name) | Name of database subnet group, or null when not created |
 | <a name="output_database_subnets"></a> [database\_subnets](#output\_database\_subnets) | Database Subnet ID List |
+| <a name="output_database_subnets_cidr_blocks"></a> [database\_subnets\_cidr\_blocks](#output\_database\_subnets\_cidr\_blocks) | Database subnet CIDR blocks |
+| <a name="output_database_subnets_ipv6_cidr_blocks"></a> [database\_subnets\_ipv6\_cidr\_blocks](#output\_database\_subnets\_ipv6\_cidr\_blocks) | Database subnet IPv6 CIDR blocks |
 | <a name="output_default_network_acl_id"></a> [default\_network\_acl\_id](#output\_default\_network\_acl\_id) | Default Network ACL ID, or null when not created |
 | <a name="output_default_route_table_id"></a> [default\_route\_table\_id](#output\_default\_route\_table\_id) | Default Route Table ID, or null when not created |
 | <a name="output_default_security_group_id"></a> [default\_security\_group\_id](#output\_default\_security\_group\_id) | Default Security Group ID, or null when not created |
@@ -249,6 +254,12 @@ No modules.
 | <a name="output_default_vpc_default_route_table_id"></a> [default\_vpc\_default\_route\_table\_id](#output\_default\_vpc\_default\_route\_table\_id) | Default route table ID of the default VPC, or null when not created |
 | <a name="output_default_vpc_default_security_group_id"></a> [default\_vpc\_default\_security\_group\_id](#output\_default\_vpc\_default\_security\_group\_id) | Security Group ID for default security group of default VPC, or null when not created |
 | <a name="output_default_vpc_id"></a> [default\_vpc\_id](#output\_default\_vpc\_id) | Default VPC ID, or null when not created |
+| <a name="output_egress_only_internet_gateway_id"></a> [egress\_only\_internet\_gateway\_id](#output\_egress\_only\_internet\_gateway\_id) | Egress-only internet gateway ID, or null when not created |
+| <a name="output_igw_arn"></a> [igw\_arn](#output\_igw\_arn) | Internet gateway ARN, or null when not created |
+| <a name="output_igw_id"></a> [igw\_id](#output\_igw\_id) | Internet gateway ID, or null when not created |
+| <a name="output_nat_ids"></a> [nat\_ids](#output\_nat\_ids) | Elastic IP allocation IDs created for the NAT gateways |
+| <a name="output_nat_public_ips"></a> [nat\_public\_ips](#output\_nat\_public\_ips) | Public IPs of the NAT gateways |
+| <a name="output_natgw_ids"></a> [natgw\_ids](#output\_natgw\_ids) | NAT gateway IDs |
 | <a name="output_private_route_table_ids"></a> [private\_route\_table\_ids](#output\_private\_route\_table\_ids) | Private route tables IDs |
 | <a name="output_private_subnet_arns"></a> [private\_subnet\_arns](#output\_private\_subnet\_arns) | Private Subnet ARN List |
 | <a name="output_private_subnets"></a> [private\_subnets](#output\_private\_subnets) | Private Subnet ID List |
@@ -264,5 +275,11 @@ No modules.
 | <a name="output_vgw_id"></a> [vgw\_id](#output\_vgw\_id) | VPN Gateway ID, or null when not created |
 | <a name="output_vpc_arn"></a> [vpc\_arn](#output\_vpc\_arn) | VPC ARN, or null when not created |
 | <a name="output_vpc_cidr_block"></a> [vpc\_cidr\_block](#output\_vpc\_cidr\_block) | VPC CIDR Block, or null when not created |
+| <a name="output_vpc_flow_log_cloudwatch_iam_role_arn"></a> [vpc\_flow\_log\_cloudwatch\_iam\_role\_arn](#output\_vpc\_flow\_log\_cloudwatch\_iam\_role\_arn) | ARN of the IAM role flow logs use to write to CloudWatch, or null when not used |
+| <a name="output_vpc_flow_log_cloudwatch_log_group_arn"></a> [vpc\_flow\_log\_cloudwatch\_log\_group\_arn](#output\_vpc\_flow\_log\_cloudwatch\_log\_group\_arn) | ARN of the flow log CloudWatch log group the module created, or null when not created |
+| <a name="output_vpc_flow_log_cloudwatch_log_group_name"></a> [vpc\_flow\_log\_cloudwatch\_log\_group\_name](#output\_vpc\_flow\_log\_cloudwatch\_log\_group\_name) | Name of the flow log CloudWatch log group the module created, or null when not created |
+| <a name="output_vpc_flow_log_destination_arn"></a> [vpc\_flow\_log\_destination\_arn](#output\_vpc\_flow\_log\_destination\_arn) | ARN of the flow log destination, or null when flow logs are off |
+| <a name="output_vpc_flow_log_id"></a> [vpc\_flow\_log\_id](#output\_vpc\_flow\_log\_id) | Flow log ID, or null when not created |
 | <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id) | VPC ID, or null when not created |
+| <a name="output_vpc_ipv6_cidr_block"></a> [vpc\_ipv6\_cidr\_block](#output\_vpc\_ipv6\_cidr\_block) | VPC IPv6 CIDR block, or null when not created or IPv6 is off |
 <!-- END_TF_DOCS -->
