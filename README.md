@@ -1,9 +1,55 @@
-# SUDO AWS Terraform VPC Module
+# terraform-aws-sudo-vpc
 
-This module deploys AWS VPC along with subnets, route tables and necessary Network ACLs.
+| [![Terraform CI](https://github.com/sudo-terraform-aws-modules/terraform-aws-sudo-vpc/actions/workflows/main.yml/badge.svg)](https://github.com/sudo-terraform-aws-modules/terraform-aws-sudo-vpc/actions/workflows/main.yml) | [![Terraform](https://img.shields.io/badge/terraform-%3E%3D1.3.0-7B42BC?logo=terraform)](versions.tf) | [![AWS provider](https://img.shields.io/badge/aws%20provider-%3E%3D6.0-FF9900)](versions.tf) | [![License](https://img.shields.io/github/license/sudo-terraform-aws-modules/terraform-aws-sudo-vpc)](LICENSE) |
+|---|---|---|---|
 
-This module is design with security first in mind and part of SUDO's DevOps Accelerators.
+<img width="600" alt="SUDO x AWS" src="https://github.com/user-attachments/assets/f7044ff9-afce-4811-91c6-2f3c95635abb" />
 
+Terraform module that creates an Amazon VPC and the network around it: public, private and database subnets across availability zones, an internet gateway, optional NAT gateways, route tables, a database subnet group and VPC flow logs. It can also create a VPN gateway and customer gateways, and it takes over the VPC's default security group and removes its rules.
+
+With no inputs the module creates a `172.31.0.0/16` VPC with three public, three private and three database `/24` subnets in the first three availability zones of the region. There is no NAT gateway, so the private and database subnets have no route to the internet. Public subnets give instances a public IP on launch. Flow logs capture rejected traffic into a CloudWatch log group kept for 90 days, and the default security group has no rules. These defaults suit a sandbox. For a shared or long-lived network, set `cidr` to a range that does not overlap your other networks, size the subnets yourself and turn on NAT gateways. Safer defaults are tracked in #11.
+
+## Usage
+
+```hcl
+module "vpc" {
+  source  = "sudo-terraform-aws-modules/sudo-vpc/aws"
+  version = "0.1.0"
+
+  name = "acme-prod"
+  cidr = "10.20.0.0/16"
+  azs  = ["eu-west-1a", "eu-west-1b", "eu-west-1c"]
+
+  public_subnets   = ["10.20.0.0/24", "10.20.1.0/24", "10.20.2.0/24"]
+  private_subnets  = ["10.20.16.0/20", "10.20.32.0/20", "10.20.48.0/20"]
+  database_subnets = ["10.20.64.0/24", "10.20.65.0/24", "10.20.66.0/24"]
+
+  map_public_ip_on_launch = false
+
+  enable_nat_gateway = true
+  single_nat_gateway = true
+
+  tags = {
+    Environment = "prod"
+  }
+}
+```
+
+See [examples/minimal](examples/minimal) and [examples/complete](examples/complete). The complete example adds flow logs for all traffic with one-year retention, a VPN gateway and a customer gateway.
+
+## Things to know before you apply
+
+**Settings fixed at creation.** Changing `cidr` replaces the VPC and everything in it. Changing a subnet's CIDR or availability zone replaces that subnet, which fails while network interfaces are still attached to it. Subnets are created with `count`, so removing or reordering entries in a subnet list or in `azs` replaces every subnet after that position. Pass `cidr` whenever you pass subnet lists: with `cidr` left at its default the lists are ignored and the subnets are carved from `172.31.0.0/16` (#10).
+
+**Deletion protection.** VPCs have no deletion protection. `terraform destroy` removes the VPC with all its subnets, gateways and route tables. AWS refuses to delete a subnet while other resources, such as load balancers, RDS instances or Lambda functions, still have network interfaces in it, so remove those first.
+
+**Costs.** NAT gateways are billed per hour and per GB processed, and each one holds an Elastic IP. With `enable_nat_gateway = true` the module creates one NAT gateway for the VPC unless `single_nat_gateway` is set to `false`. Flow logs are billed for CloudWatch Logs ingestion and storage, and `flow_log_traffic_type = "ALL"` ingests far more than the default `REJECT`. Public IPv4 addresses, including those assigned through `map_public_ip_on_launch`, are billed per hour.
+
+**Secrets in state.** The module takes no secrets. State holds network IDs, CIDR ranges, the public IPs of the NAT gateways and the IP addresses of customer gateways. Treat it as internal network documentation and keep access to it narrow.
+
+**Permissions the caller needs.** Applying needs EC2 permissions for VPCs, subnets, route tables, internet and NAT gateways, Elastic IPs, network ACLs, security groups and, if used, VPN and customer gateways. The default flow logs also need CloudWatch Logs permissions to create the log group and set its retention, and IAM permissions to create the flow log role and policy, attach them and pass the role (`iam:PassRole`). To leave IAM out, send flow logs to S3, or pass `flow_log_cloudwatch_iam_role_arn` with `create_flow_log_cloudwatch_iam_role = false`. `vpc_flow_log_permissions_boundary` sets a permissions boundary on the role the module creates.
+
+**Known issues.** Some features do not work as documented yet: one NAT gateway per AZ, the database route table and its NAT and internet routes, the dedicated database network ACL (it denies all traffic), and VGW route propagation. They are tracked in #10, and the defaults in #11. The database subnet group is named after `name`, so two VPCs with the same `name` in one region collide.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
