@@ -7,7 +7,7 @@
 
 Terraform module that creates an Amazon VPC and the network around it: public, private and database subnets across availability zones, an internet gateway, optional NAT gateways, route tables, a database subnet group and VPC flow logs. It can also create a VPN gateway and customer gateways, and it takes over the VPC's default security group and removes its rules.
 
-With no inputs the module creates a `172.31.0.0/16` VPC with three public, three private and three database `/24` subnets in the first three availability zones of the region. There is no NAT gateway, so the private and database subnets have no route to the internet. Public subnets give instances a public IP on launch. Flow logs capture rejected traffic into a CloudWatch log group kept for 365 days, the default security group has no rules, the default route table has no routes, and the default network ACL allows all traffic. These defaults suit a sandbox. For a shared or long-lived network, set `cidr` to a range that does not overlap your other networks, size the subnets yourself and turn on NAT gateways. Safer defaults are tracked in #11.
+Given only `name` and `cidr`, the module carves three public, three private and three database subnets, one of each per availability zone in up to three zones. With a `/16` `cidr` each subnet is a `/24`. There is no NAT gateway, so the private and database subnets have no route to the internet. Public subnets do not give instances a public IP on launch. Flow logs capture rejected traffic into a CloudWatch log group kept for 365 days, the default security group has no rules, the default route table has no routes, and the default network ACL allows all traffic. These defaults suit a sandbox or a first environment. For production, size the subnets yourself, turn on NAT gateways (one per AZ if an AZ outage must not cut egress) and consider `flow_log_traffic_type = "ALL"` for incident investigation.
 
 ## Usage
 
@@ -39,7 +39,7 @@ See [examples/minimal](examples/minimal) and [examples/complete](examples/comple
 
 ## Things to know before you apply
 
-**Settings fixed at creation.** Changing `cidr` replaces the VPC and everything in it. Changing a subnet's CIDR or availability zone replaces that subnet, which fails while network interfaces are still attached to it. Subnets are created with `count`, so removing or reordering entries in a subnet list or in `azs` replaces every subnet after that position. Pass `cidr` whenever you pass subnet lists, and pass subnet lists when you use IPAM; the plan fails otherwise. Automatic subnet carving needs a `/20` or larger VPC.
+**Settings fixed at creation.** Changing `cidr` replaces the VPC and everything in it. Changing a subnet's CIDR or availability zone replaces that subnet, which fails while network interfaces are still attached to it. Subnets are created with `count`, so removing or reordering entries in a subnet list or in `azs` replaces every subnet after that position. With IPAM, pass the subnet lists yourself, because the range is only known after apply; the plan fails otherwise. Automatic subnet carving needs a `/20` or larger VPC.
 
 **Deletion protection.** VPCs have no deletion protection. `terraform destroy` removes the VPC with all its subnets, gateways and route tables. AWS refuses to delete a subnet while other resources, such as load balancers, RDS instances or Lambda functions, still have network interfaces in it, so remove those first.
 
@@ -51,7 +51,7 @@ See [examples/minimal](examples/minimal) and [examples/complete](examples/comple
 
 **Permissions the caller needs.** Applying needs EC2 permissions for VPCs, subnets, route tables, internet and NAT gateways, Elastic IPs, network ACLs, security groups and, if used, VPN and customer gateways. The default flow logs also need CloudWatch Logs permissions to create the log group and set its retention, and IAM permissions to create the flow log role and policy, attach them and pass the role (`iam:PassRole`). To leave IAM out, send flow logs to S3, or pass `flow_log_cloudwatch_iam_role_arn` with `create_flow_log_cloudwatch_iam_role = false`. `vpc_flow_log_permissions_boundary` sets a permissions boundary on the role the module creates.
 
-**Known issues.** Safer defaults are tracked in #11. The database subnet group is named after `name`, so two VPCs with the same `name` in one region collide.
+**Known issues.** Private subnets get no IPv6 route to the internet yet (#11). The database subnet group is named after `name`, so use a `name` that is unique in the account and region.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
@@ -128,7 +128,7 @@ No modules.
 | <a name="input_amazon_side_asn"></a> [amazon\_side\_asn](#input\_amazon\_side\_asn) | (optional) Provide ASN for the gateway. Default: 64512 | `string` | `"64512"` | no |
 | <a name="input_assign_ipv6_address_on_creation"></a> [assign\_ipv6\_address\_on\_creation](#input\_assign\_ipv6\_address\_on\_creation) | Assign IPv6 address on subnet, must be disabled to change IPv6 CIDRs. This is the IPv6 equivalent of map\_public\_ip\_on\_launch | `bool` | `false` | no |
 | <a name="input_azs"></a> [azs](#input\_azs) | A list of availability zones names or ids in the region | `list(string)` | `[]` | no |
-| <a name="input_cidr"></a> [cidr](#input\_cidr) | (Optional) The IPv4 CIDR block for the VPC. CIDR can be explicitly set or it can be derived from IPAM using `ipv4_netmask_length` & `ipv4_ipam_pool_id` | `string` | `"0.0.0.0/0"` | no |
+| <a name="input_cidr"></a> [cidr](#input\_cidr) | The IPv4 CIDR block for the VPC, for example 10.0.0.0/16. Required unless the range comes from IPAM (use\_ipam\_pool, ipv4\_ipam\_pool\_id and ipv4\_netmask\_length). Pick a range that does not overlap networks you peer or connect with; the AWS default VPC uses 172.31.0.0/16. | `string` | `null` | no |
 | <a name="input_create_database_internet_gateway_route"></a> [create\_database\_internet\_gateway\_route](#input\_create\_database\_internet\_gateway\_route) | Controls if an internet gateway route for public database access should be created | `bool` | `false` | no |
 | <a name="input_create_database_nat_gateway_route"></a> [create\_database\_nat\_gateway\_route](#input\_create\_database\_nat\_gateway\_route) | Controls if a nat gateway route should be created to give internet access to the database subnets | `bool` | `false` | no |
 | <a name="input_create_database_subnet_group"></a> [create\_database\_subnet\_group](#input\_create\_database\_subnet\_group) | Controls if database subnet group should be created (n.b. database\_subnets must also be set) | `bool` | `true` | no |
@@ -197,8 +197,8 @@ No modules.
 | <a name="input_manage_default_route_table"></a> [manage\_default\_route\_table](#input\_manage\_default\_route\_table) | (optional) Adopt the VPC's default route table and remove every route except the local one, so subnets left on it have no path out of the VPC. Default: true | `bool` | `true` | no |
 | <a name="input_manage_default_security_group"></a> [manage\_default\_security\_group](#input\_manage\_default\_security\_group) | Should be true to adopt and manage default security group | `bool` | `true` | no |
 | <a name="input_manage_default_vpc"></a> [manage\_default\_vpc](#input\_manage\_default\_vpc) | (optional) Manage Default VPC. Default: false | `bool` | `false` | no |
-| <a name="input_map_public_ip_on_launch"></a> [map\_public\_ip\_on\_launch](#input\_map\_public\_ip\_on\_launch) | Should be false if you do not want to auto-assign public IP on launch | `bool` | `true` | no |
-| <a name="input_name"></a> [name](#input\_name) | Name to be used on all the resources as identifier | `string` | `"sudo-vpc"` | no |
+| <a name="input_map_public_ip_on_launch"></a> [map\_public\_ip\_on\_launch](#input\_map\_public\_ip\_on\_launch) | (optional) Give instances launched in public subnets a public IPv4 address. Leave it false and attach Elastic IPs or use a load balancer where public access is needed. Default: false | `bool` | `false` | no |
+| <a name="input_name"></a> [name](#input\_name) | Name of the VPC, used in the Name tag of every resource and as the database subnet group name. Use a name that is unique in the account and region, because subnet group names must be. | `string` | n/a | yes |
 | <a name="input_nat_eip_tags"></a> [nat\_eip\_tags](#input\_nat\_eip\_tags) | Additional tags for the NAT EIP | `map(string)` | `{}` | no |
 | <a name="input_nat_gateway_destination_cidr_block"></a> [nat\_gateway\_destination\_cidr\_block](#input\_nat\_gateway\_destination\_cidr\_block) | Used to pass a custom destination route for private NAT Gateway. If not specified, the default 0.0.0.0/0 is used as a destination route. | `string` | `"0.0.0.0/0"` | no |
 | <a name="input_nat_gateway_tags"></a> [nat\_gateway\_tags](#input\_nat\_gateway\_tags) | Additional tags for the NAT gateways | `map(string)` | `{}` | no |

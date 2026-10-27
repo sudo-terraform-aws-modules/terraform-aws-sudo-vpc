@@ -12,17 +12,21 @@ locals {
   # Use `local.vpc_id` to give a hint to Terraform that subnets should be deleted before secondary CIDR blocks can be free!
   vpc_id                      = try(aws_vpc_ipv4_cidr_block_association.this[0].vpc_id, aws_vpc.this[0].id, "")
   default_security_group_name = coalesce(var.default_security_group_name, "${var.name}-default-security-group")
-  cidr                        = var.cidr == "0.0.0.0/0" ? "172.31.0.0/16" : var.cidr
+  cidr                        = var.cidr
   create_vpc                  = var.create_vpc
 
-  azs = length(var.azs) > 0 ? var.azs : slice(data.aws_availability_zones.azs.zone_ids, 0, length(local.public_subnets))
+  available_az_ids = data.aws_availability_zones.azs.zone_ids
+  azs              = length(var.azs) > 0 ? var.azs : slice(local.available_az_ids, 0, min(length(local.available_az_ids), length(local.public_subnets)))
+
   # Carving splits cidr into four blocks and each block into three subnets, 8 bits in all.
   # A /20 gives /28 subnets, the smallest AWS allows; smaller VPCs are rejected below.
-  carve_prefix = tonumber(split("/", local.cidr)[1])
-  subnets      = try([for cidr_block in cidrsubnets(local.cidr, 4, 4, 4, 4) : cidrsubnets(cidr_block, 4, 4, 4)], [[], [], []])
+  # One subnet per tier per AZ, up to three: the AZs in var.azs, otherwise the region's.
+  carve_az_count = min(3, length(var.azs) > 0 ? length(var.azs) : length(local.available_az_ids))
+  carve_prefix   = try(tonumber(split("/", local.cidr)[1]), null)
+  subnets        = try([for cidr_block in cidrsubnets(local.cidr, 4, 4, 4, 4) : slice(cidrsubnets(cidr_block, 4, 4, 4), 0, local.carve_az_count)], [[], [], []])
 
-  # Given subnet lists are used when the VPC range is known to the caller: cidr is set, or IPAM.
-  use_given_subnets = local.max_subnet_length > 0 && (var.cidr != "0.0.0.0/0" || var.use_ipam_pool)
+  # Given subnet lists are always used; without them the module carves subnets from cidr.
+  use_given_subnets = local.max_subnet_length > 0
 
   # Create private subnets without NAT in default mode.
   public_subnets   = local.use_given_subnets ? var.public_subnets : local.subnets[0]
@@ -74,8 +78,8 @@ resource "aws_vpc" "this" {
 
   lifecycle {
     precondition {
-      condition     = local.max_subnet_length == 0 || var.cidr != "0.0.0.0/0" || var.use_ipam_pool
-      error_message = "public_subnets and private_subnets are only used when cidr is set. Set cidr to the VPC range that contains them; otherwise the module ignores them and carves 172.31.0.0/16."
+      condition     = var.cidr != null || var.use_ipam_pool
+      error_message = "Set cidr to the VPC's IPv4 range, for example 10.0.0.0/16, or take the range from IPAM with use_ipam_pool, ipv4_ipam_pool_id and ipv4_netmask_length."
     }
 
     precondition {
@@ -84,7 +88,7 @@ resource "aws_vpc" "this" {
     }
 
     precondition {
-      condition     = local.use_given_subnets || var.use_ipam_pool || local.carve_prefix <= 20
+      condition     = local.use_given_subnets || var.use_ipam_pool || var.cidr == null || try(local.carve_prefix <= 20, false)
       error_message = "Automatic subnet carving needs a VPC of /20 or larger, which gives /28 subnets, the smallest AWS allows. Use a larger cidr or pass public_subnets, private_subnets and database_subnets."
     }
   }

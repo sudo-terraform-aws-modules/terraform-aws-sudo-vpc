@@ -5,15 +5,25 @@ variable "create_vpc" {
 }
 
 variable "name" {
-  description = "Name to be used on all the resources as identifier"
+  description = "Name of the VPC, used in the Name tag of every resource and as the database subnet group name. Use a name that is unique in the account and region, because subnet group names must be."
   type        = string
-  default     = "sudo-vpc"
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.name)) > 0
+    error_message = "name must not be empty."
+  }
 }
 
 variable "cidr" {
-  description = "(Optional) The IPv4 CIDR block for the VPC. CIDR can be explicitly set or it can be derived from IPAM using `ipv4_netmask_length` & `ipv4_ipam_pool_id`"
+  description = "The IPv4 CIDR block for the VPC, for example 10.0.0.0/16. Required unless the range comes from IPAM (use_ipam_pool, ipv4_ipam_pool_id and ipv4_netmask_length). Pick a range that does not overlap networks you peer or connect with; the AWS default VPC uses 172.31.0.0/16."
   type        = string
-  default     = "0.0.0.0/0"
+  default     = null
+
+  validation {
+    condition     = var.cidr == null || try(cidrnetmask(var.cidr) != "0.0.0.0", false)
+    error_message = "cidr must be an IPv4 CIDR block such as 10.0.0.0/16. 0.0.0.0/0 no longer means \"use 172.31.0.0/16\"; set the range explicitly."
+  }
 }
 
 variable "use_ipam_pool" {
@@ -112,9 +122,9 @@ variable "azs" {
 }
 
 variable "map_public_ip_on_launch" {
-  description = "Should be false if you do not want to auto-assign public IP on launch"
+  description = "(optional) Give instances launched in public subnets a public IPv4 address. Leave it false and attach Elastic IPs or use a load balancer where public access is needed. Default: false"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "public_subnet_assign_ipv6_address_on_creation" {

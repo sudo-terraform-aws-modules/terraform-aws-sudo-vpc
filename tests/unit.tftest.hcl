@@ -55,14 +55,15 @@ mock_provider "aws" {
 
 variables {
   name = "unit-test"
+  cidr = "10.0.0.0/16"
 }
 
 run "defaults" {
   command = plan
 
   assert {
-    condition     = aws_vpc.this[0].cidr_block == "172.31.0.0/16"
-    error_message = "With cidr left at its default the VPC must use 172.31.0.0/16."
+    condition     = aws_vpc.this[0].cidr_block == "10.0.0.0/16"
+    error_message = "The VPC must use the given cidr."
   }
 
   assert {
@@ -554,6 +555,7 @@ run "rejects_subnets_without_cidr" {
   command = plan
 
   variables {
+    cidr            = null
     public_subnets  = ["10.0.0.0/24", "10.0.1.0/24", "10.0.2.0/24"]
     private_subnets = ["10.0.16.0/24", "10.0.17.0/24", "10.0.18.0/24"]
   }
@@ -565,6 +567,7 @@ run "rejects_ipam_without_subnets" {
   command = plan
 
   variables {
+    cidr                = null
     use_ipam_pool       = true
     ipv4_ipam_pool_id   = "ipam-pool-0123456789abcdef0"
     ipv4_netmask_length = 16
@@ -577,6 +580,7 @@ run "ipam_with_given_subnets" {
   command = plan
 
   variables {
+    cidr                = null
     use_ipam_pool       = true
     ipv4_ipam_pool_id   = "ipam-pool-0123456789abcdef0"
     ipv4_netmask_length = 16
@@ -586,7 +590,7 @@ run "ipam_with_given_subnets" {
 
   assert {
     condition     = aws_subnet.private[*].cidr_block == ["10.30.16.0/20", "10.30.32.0/20", "10.30.48.0/20"]
-    error_message = "With IPAM, the given subnets must be used instead of subnets carved from 172.31.0.0/16."
+    error_message = "With IPAM, the given subnets must be used."
   }
 }
 
@@ -740,5 +744,81 @@ run "no_default_resources_without_vpc" {
   assert {
     condition     = length(aws_default_route_table.this) == 0 && length(aws_default_network_acl.this) == 0
     error_message = "create_vpc = false must not manage the default route table or NACL."
+  }
+}
+
+# Issue #11: safer defaults.
+
+run "rejects_missing_cidr" {
+  command = plan
+
+  variables {
+    cidr = null
+  }
+
+  expect_failures = [aws_vpc.this]
+}
+
+run "rejects_catch_all_cidr" {
+  command = plan
+
+  variables {
+    cidr = "0.0.0.0/0"
+  }
+
+  expect_failures = [var.cidr]
+}
+
+run "rejects_blank_name" {
+  command = plan
+
+  variables {
+    name = " "
+  }
+
+  expect_failures = [var.name]
+}
+
+run "public_subnets_assign_no_public_ip_by_default" {
+  command = plan
+
+  assert {
+    condition     = alltrue([for s in aws_subnet.public : s.map_public_ip_on_launch == false])
+    error_message = "Public subnets must not assign public IPs on launch by default."
+  }
+}
+
+run "two_az_region" {
+  command = plan
+
+  override_data {
+    target = data.aws_availability_zones.azs
+    values = {
+      names    = ["ap-test-1a", "ap-test-1b"]
+      zone_ids = ["apt1-az1", "apt1-az2"]
+    }
+  }
+
+  assert {
+    condition     = length(aws_subnet.public) == 2 && length(aws_subnet.private) == 2 && length(aws_subnet.database) == 2
+    error_message = "In a 2-AZ region the module must carve one subnet per tier per AZ, not fail."
+  }
+
+  assert {
+    condition     = aws_subnet.private[*].availability_zone_id == ["apt1-az1", "apt1-az2"]
+    error_message = "Carved subnets must spread across the region's AZs."
+  }
+}
+
+run "carves_one_subnet_per_given_az" {
+  command = plan
+
+  variables {
+    azs = ["eu-west-1a", "eu-west-1b"]
+  }
+
+  assert {
+    condition     = length(aws_subnet.public) == 2 && aws_subnet.public[*].availability_zone == ["eu-west-1a", "eu-west-1b"]
+    error_message = "With two AZs given, the module must carve two subnets per tier, one in each."
   }
 }
