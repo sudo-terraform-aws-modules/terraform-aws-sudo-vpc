@@ -12,6 +12,7 @@ All notable changes to this module are documented here. The format follows [Keep
 - `database_inbound_acl_rules` and `database_outbound_acl_rules` for the dedicated database network ACL. Both default to one rule that allows all traffic, as upstream does. NACLs are stateless, so tighter rules must also allow return traffic for anything the database subnets reach out to (#10).
 - `manage_default_route_table`, `default_route_table_name` and `default_route_table_tags`, and `default_network_acl_name`, `default_network_acl_ingress`, `default_network_acl_egress` and `default_network_acl_tags`, for managing the VPC default route table and default network ACL (#11).
 - Outputs for the internet gateway, egress-only gateway, NAT gateways and their public IPs, database subnet ARNs and CIDRs, database route tables, the AZs in use, the VPC IPv6 CIDR, and the flow log, its destination, IAM role and log group (#13).
+- Intra subnets from `intra_subnets`, with one shared route table that has no internet route. `propagate_intra_route_tables_vgw` propagates VPN gateway routes into it; before, the variable existed but did nothing (#13).
 
 ### Changed
 
@@ -30,7 +31,7 @@ All notable changes to this module are documented here. The format follows [Keep
 
 ### Removed
 
-- **Breaking:** the unused variables `default_vpc_enable_classiclink` and `propagate_intra_route_tables_vgw`. Neither changed any resource. To migrate, delete them from your module call, otherwise Terraform reports an unsupported argument (#12).
+- **Breaking:** the unused variable `default_vpc_enable_classiclink`. It changed no resource. To migrate, delete it from your module call, otherwise Terraform reports an unsupported argument (#12).
 - **Breaking:** the `hashicorp/random` provider requirement and the `random_string.random` resource. The random suffix only ever reached the default security group Name tag: with `name = "sudo-vpc"` (the default) that tag changes in place from `sudo-vpc-<6 random characters>-default-security-group` to `sudo-vpc-default-security-group`, and `random_string.random` is destroyed on the next apply. Nothing in AWS is replaced. To keep a unique tag, set `name` or `default_security_group_name` (#12).
 
 ### Fixed

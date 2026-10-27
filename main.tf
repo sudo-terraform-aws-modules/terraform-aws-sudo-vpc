@@ -714,3 +714,61 @@ resource "aws_network_acl_rule" "database_outbound" {
   cidr_block      = var.database_outbound_acl_rules[count.index].cidr_block
   ipv6_cidr_block = var.database_outbound_acl_rules[count.index].ipv6_cidr_block
 }
+
+################################################################################
+# Intra subnets
+# No internet route in either direction. One shared route table.
+################################################################################
+
+locals {
+  create_intra_subnets = local.create_vpc && length(var.intra_subnets) > 0
+}
+
+resource "aws_subnet" "intra" {
+  count = local.create_intra_subnets ? length(var.intra_subnets) : 0
+
+  vpc_id                          = local.vpc_id
+  cidr_block                      = var.intra_subnets[count.index]
+  availability_zone               = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) > 0 ? element(local.azs, count.index) : null
+  availability_zone_id            = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) == 0 ? element(local.azs, count.index) : null
+  assign_ipv6_address_on_creation = var.intra_subnet_assign_ipv6_address_on_creation == null ? var.assign_ipv6_address_on_creation : var.intra_subnet_assign_ipv6_address_on_creation
+
+  ipv6_cidr_block = var.enable_ipv6 && length(var.intra_subnet_ipv6_prefixes) > 0 ? cidrsubnet(aws_vpc.this[0].ipv6_cidr_block, 8, var.intra_subnet_ipv6_prefixes[count.index]) : null
+
+  tags = merge(
+    {
+      Name = try(
+        var.intra_subnet_names[count.index],
+        format("${var.name}-${var.intra_subnet_suffix}-%s", element(local.azs, count.index))
+      )
+    },
+    var.tags,
+    var.intra_subnet_tags,
+  )
+}
+
+resource "aws_route_table" "intra" {
+  count = local.create_intra_subnets ? 1 : 0
+
+  vpc_id = local.vpc_id
+
+  tags = merge(
+    { "Name" = "${var.name}-${var.intra_subnet_suffix}" },
+    var.tags,
+    var.intra_route_table_tags,
+  )
+}
+
+resource "aws_route_table_association" "intra" {
+  count = local.create_intra_subnets ? length(var.intra_subnets) : 0
+
+  subnet_id      = aws_subnet.intra[count.index].id
+  route_table_id = aws_route_table.intra[0].id
+}
+
+resource "aws_vpn_gateway_route_propagation" "intra" {
+  count = local.propagate_vgw && var.propagate_intra_route_tables_vgw && local.create_intra_subnets ? 1 : 0
+
+  route_table_id = aws_route_table.intra[0].id
+  vpn_gateway_id = local.propagation_vpn_gateway_id
+}

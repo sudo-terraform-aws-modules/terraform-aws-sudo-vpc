@@ -928,3 +928,38 @@ run "outputs_null_without_vpc" {
     error_message = "Outputs must be null or empty when nothing is created."
   }
 }
+
+run "intra_subnets" {
+  command = apply
+
+  variables {
+    intra_subnets                    = ["10.0.48.0/24", "10.0.49.0/24"]
+    enable_nat_gateway               = true
+    enable_vpn_gateway               = true
+    propagate_intra_route_tables_vgw = true
+  }
+
+  assert {
+    condition     = output.intra_subnets_cidr_blocks == tolist(["10.0.48.0/24", "10.0.49.0/24"]) && aws_subnet.intra[1].availability_zone == "eu-west-1b"
+    error_message = "Intra subnets must be created from the given list, spread across azs."
+  }
+
+  assert {
+    condition     = length(aws_route_table.intra) == 1 && aws_route_table_association.intra[*].route_table_id == [aws_route_table.intra[0].id, aws_route_table.intra[0].id]
+    error_message = "All intra subnets must share one intra route table."
+  }
+
+  assert {
+    condition     = length(aws_vpn_gateway_route_propagation.intra) == 1
+    error_message = "VGW routes must propagate into the intra route table when asked."
+  }
+}
+
+run "no_intra_subnets_by_default" {
+  command = plan
+
+  assert {
+    condition     = length(aws_subnet.intra) == 0 && length(aws_route_table.intra) == 0
+    error_message = "Intra subnets are never carved."
+  }
+}

@@ -232,3 +232,23 @@ output "vpc_flow_log_cloudwatch_log_group_arn" {
   description = "ARN of the flow log CloudWatch log group the module created, or null when not created"
   value       = try(aws_cloudwatch_log_group.flow_log[0].arn, null)
 }
+
+output "intra_subnets" {
+  description = "Intra subnet IDs"
+  value       = aws_subnet.intra[*].id
+}
+
+output "intra_subnet_arns" {
+  description = "Intra subnet ARNs"
+  value       = aws_subnet.intra[*].arn
+}
+
+output "intra_subnets_cidr_blocks" {
+  description = "Intra subnet CIDR blocks"
+  value       = compact(aws_subnet.intra[*].cidr_block)
+}
+
+output "intra_route_table_ids" {
+  description = "Intra route table IDs"
+  value       = aws_route_table.intra[*].id
+}

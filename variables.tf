@@ -766,3 +766,55 @@ variable "database_outbound_acl_rules" {
     cidr_block  = "0.0.0.0/0"
   }]
 }
+
+################################################################################
+# Intra subnets
+################################################################################
+
+variable "intra_subnets" {
+  description = "Intra subnets: no route to or from the internet. Created only from this list, never carved."
+  type        = list(string)
+  default     = []
+}
+
+variable "intra_subnet_assign_ipv6_address_on_creation" {
+  description = "Assign IPv6 addresses on creation in intra subnets. null uses assign_ipv6_address_on_creation."
+  type        = bool
+  default     = null
+}
+
+variable "intra_subnet_ipv6_prefixes" {
+  description = "IPv6 prefix numbers for the intra subnets, carved as /64s from the VPC IPv6 range. One per subnet, in order."
+  type        = list(string)
+  default     = []
+}
+
+variable "intra_subnet_names" {
+  description = "Names for the intra subnets, in order. Defaults to <name>-<intra_subnet_suffix>-<az>."
+  type        = list(string)
+  default     = []
+}
+
+variable "intra_subnet_suffix" {
+  description = "Suffix for intra subnet and route table names"
+  type        = string
+  default     = "intra"
+}
+
+variable "intra_subnet_tags" {
+  description = "Additional tags for the intra subnets"
+  type        = map(string)
+  default     = {}
+}
+
+variable "intra_route_table_tags" {
+  description = "Additional tags for the intra route table"
+  type        = map(string)
+  default     = {}
+}
+
+variable "propagate_intra_route_tables_vgw" {
+  description = "Propagate VPN gateway routes into the intra route table"
+  type        = bool
+  default     = false
+}
