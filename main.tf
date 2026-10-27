@@ -103,7 +103,7 @@ resource "aws_subnet" "public" {
   count = local.create_vpc && length(local.public_subnets) > 0 && (false == var.one_nat_gateway_per_az || length(local.public_subnets) >= length(local.azs)) ? length(local.public_subnets) : 0
 
   vpc_id                          = local.vpc_id
-  cidr_block                      = element(concat(local.public_subnets, [""]), count.index)
+  cidr_block                      = local.public_subnets[count.index]
   availability_zone               = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) > 0 ? element(local.azs, count.index) : null
   availability_zone_id            = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) == 0 ? element(local.azs, count.index) : null
   map_public_ip_on_launch         = var.map_public_ip_on_launch
@@ -372,16 +372,16 @@ resource "aws_default_route_table" "this" {
   default_route_table_id = aws_vpc.this[0].default_route_table_id
   route                  = []
 
+  timeouts {
+    create = "5m"
+    update = "5m"
+  }
+
   tags = merge(
     { "Name" = coalesce(var.default_route_table_name, "${var.name}-default") },
     var.tags,
     var.default_route_table_tags,
   )
-
-  timeouts {
-    create = "5m"
-    update = "5m"
-  }
 }
 
 resource "aws_default_network_acl" "this" {

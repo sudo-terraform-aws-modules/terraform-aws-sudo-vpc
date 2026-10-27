@@ -330,20 +330,20 @@ variable "default_security_group_tags" {
 }
 
 variable "enable_flow_log" {
-  type        = bool
   description = "(optional) Enable Flow Logs. Default: true"
+  type        = bool
   default     = true
 }
 
 variable "create_flow_log_cloudwatch_log_group" {
-  type        = bool
   description = "(optional) Create Flow Log CloudWatch Log Group. Default: true"
+  type        = bool
   default     = true
 }
 
 variable "create_flow_log_cloudwatch_iam_role" {
-  type        = bool
   description = "(optional) Create Flow Log CloudWatch IAM Role. Default: true"
+  type        = bool
   default     = true
 }
 
