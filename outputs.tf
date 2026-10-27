@@ -312,3 +312,8 @@ output "vpc_endpoints_security_group_id" {
   description = "ID of the security group for the interface endpoints, or null when not created"
   value       = try(aws_security_group.vpc_endpoints[0].id, null)
 }
+
+output "dhcp_options_id" {
+  description = "DHCP options set ID, or null when not created"
+  value       = try(aws_vpc_dhcp_options.this[0].id, null)
+}

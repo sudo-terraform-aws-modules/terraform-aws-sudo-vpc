@@ -1221,3 +1221,55 @@ variable "vpc_endpoint_tags" {
   type        = map(string)
   default     = {}
 }
+
+################################################################################
+# DHCP options
+################################################################################
+
+variable "enable_dhcp_options" {
+  description = "Create a DHCP options set and associate it with the VPC. Without it the VPC uses the region's default set."
+  type        = bool
+  default     = false
+}
+
+variable "dhcp_options_domain_name" {
+  description = "Domain name for the DHCP options set, for example corp.example.com"
+  type        = string
+  default     = null
+}
+
+variable "dhcp_options_domain_name_servers" {
+  description = "DNS servers for the DHCP options set"
+  type        = list(string)
+  default     = ["AmazonProvidedDNS"]
+}
+
+variable "dhcp_options_ntp_servers" {
+  description = "NTP servers for the DHCP options set"
+  type        = list(string)
+  default     = []
+}
+
+variable "dhcp_options_netbios_name_servers" {
+  description = "NetBIOS name servers for the DHCP options set"
+  type        = list(string)
+  default     = []
+}
+
+variable "dhcp_options_netbios_node_type" {
+  description = "NetBIOS node type for the DHCP options set. AWS recommends 2."
+  type        = string
+  default     = null
+}
+
+variable "dhcp_options_ipv6_address_preferred_lease_time" {
+  description = "Preferred lease time for IPv6 addresses, in seconds"
+  type        = number
+  default     = null
+}
+
+variable "dhcp_options_tags" {
+  description = "Additional tags for the DHCP options set"
+  type        = map(string)
+  default     = {}
+}

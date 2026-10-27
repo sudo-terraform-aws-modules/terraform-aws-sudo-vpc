@@ -1181,3 +1181,32 @@ run "rejects_interface_endpoints_without_dns_hostnames" {
 
   expect_failures = [aws_vpc_endpoint.interface["sts"]]
 }
+
+run "dhcp_options" {
+  command = apply
+
+  variables {
+    enable_dhcp_options      = true
+    dhcp_options_domain_name = "corp.example.com"
+    dhcp_options_ntp_servers = ["169.254.169.123"]
+  }
+
+  assert {
+    condition     = aws_vpc_dhcp_options.this[0].domain_name == "corp.example.com" && aws_vpc_dhcp_options.this[0].domain_name_servers == tolist(["AmazonProvidedDNS"]) && aws_vpc_dhcp_options.this[0].ntp_servers == tolist(["169.254.169.123"])
+    error_message = "The DHCP options set must use the given values and Amazon DNS by default."
+  }
+
+  assert {
+    condition     = aws_vpc_dhcp_options_association.this[0].dhcp_options_id == aws_vpc_dhcp_options.this[0].id && aws_vpc_dhcp_options_association.this[0].vpc_id == aws_vpc.this[0].id && output.dhcp_options_id == aws_vpc_dhcp_options.this[0].id
+    error_message = "The DHCP options set must be associated with the VPC."
+  }
+}
+
+run "no_dhcp_options_by_default" {
+  command = plan
+
+  assert {
+    condition     = length(aws_vpc_dhcp_options.this) == 0 && length(aws_vpc_dhcp_options_association.this) == 0
+    error_message = "DHCP options are opt-in."
+  }
+}
