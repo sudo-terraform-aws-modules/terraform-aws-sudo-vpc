@@ -11,8 +11,6 @@ skip-path:
 # Each skip links the issue that owns the fix. Remove the skip in the PR that fixes it.
 # Reference: https://www.checkov.io/5.Policy%20Index/terraform.html
 skip-check:
-  # aws_availability_zones does not pin the AZ set. Fix tracked in #13.
-  - CKV_AWS_394
   # False positive: with default inputs the default SG is managed with no ingress or egress
   # rules, so it restricts all traffic.
   - CKV2_AWS_12

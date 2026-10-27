@@ -110,15 +110,20 @@ variable "public_subnets" {
 }
 
 variable "one_nat_gateway_per_az" {
-  description = "Should be true if you want only one NAT Gateway per availability zone. Requires `var.azs` to be set, and the number of `public_subnets` created to be greater than or equal to the number of availability zones specified in `var.azs`."
+  description = "Should be true if you want only one NAT Gateway per availability zone. Requires the number of `public_subnets` created to be greater than or equal to the number of availability zones in `var.azs`."
   type        = bool
   default     = false
 }
 
 variable "azs" {
-  description = "A list of availability zones names or ids in the region"
+  description = "Availability zone names or IDs in the region, for example [\"eu-west-1a\", \"eu-west-1b\", \"eu-west-1c\"]. Required, so a new AZ in the region never moves subnets. Subnets are spread across them in order, and carving uses the first three."
   type        = list(string)
-  default     = []
+  nullable    = false
+
+  validation {
+    condition     = length(var.azs) > 0 && alltrue([for az in var.azs : trimspace(az) != ""]) && length(distinct(var.azs)) == length(var.azs)
+    error_message = "azs must list at least one availability zone, with no blank or repeated entries."
+  }
 }
 
 variable "map_public_ip_on_launch" {
