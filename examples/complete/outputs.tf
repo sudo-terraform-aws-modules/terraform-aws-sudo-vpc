@@ -48,7 +48,12 @@ output "intra_subnets" {
   value       = module.vpc.intra_subnets
 }
 
-output "vpc_endpoint_ids" {
-  description = "VPC endpoint IDs, by service"
-  value       = module.vpc.vpc_endpoint_ids
+output "gateway_endpoint_ids" {
+  description = "Gateway endpoint IDs, by service"
+  value       = module.vpc.gateway_endpoint_ids
+}
+
+output "interface_endpoint_ids" {
+  description = "Interface endpoint IDs, by service"
+  value       = module.vpc.interface_endpoint_ids
 }

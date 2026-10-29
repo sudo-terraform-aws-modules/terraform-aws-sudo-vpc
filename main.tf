@@ -1129,8 +1129,8 @@ resource "aws_vpc_endpoint" "interface" {
     }
 
     precondition {
-      condition     = var.enable_dns_support && var.enable_dns_hostnames
-      error_message = "Interface endpoints use private DNS, which needs enable_dns_support and enable_dns_hostnames."
+      condition     = !var.interface_endpoint_private_dns_enabled || (var.enable_dns_support && var.enable_dns_hostnames)
+      error_message = "Private DNS on interface endpoints needs enable_dns_support and enable_dns_hostnames. Turn those on, or set interface_endpoint_private_dns_enabled = false."
     }
   }
 }

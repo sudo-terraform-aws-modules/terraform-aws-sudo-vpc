@@ -1389,3 +1389,31 @@ run "null_intra_subnets_uses_default" {
     error_message = "intra_subnets = null must behave like the empty default."
   }
 }
+
+run "interface_endpoints_without_private_dns_skip_dns_check" {
+  command = plan
+
+  variables {
+    enable_dns_hostnames                   = false
+    interface_endpoints                    = ["sts"]
+    interface_endpoint_private_dns_enabled = false
+  }
+
+  assert {
+    condition     = length(aws_vpc_endpoint.interface) == 1
+    error_message = "Without private DNS, interface endpoints must not need DNS hostnames."
+  }
+}
+
+run "s3_gateway_and_interface_endpoint_ids" {
+  command = apply
+
+  variables {
+    interface_endpoints = ["s3"]
+  }
+
+  assert {
+    condition     = output.gateway_endpoint_ids["s3"] == aws_vpc_endpoint.gateway["s3"].id && output.interface_endpoint_ids["s3"] == aws_vpc_endpoint.interface["s3"].id
+    error_message = "S3 as both a gateway and an interface endpoint must show up in both outputs."
+  }
+}

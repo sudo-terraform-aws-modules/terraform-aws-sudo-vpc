@@ -303,9 +303,14 @@ output "redshift_route_table_ids" {
   value       = aws_route_table.redshift[*].id
 }
 
-output "vpc_endpoint_ids" {
-  description = "VPC endpoint IDs, by service short name"
-  value       = merge({ for k, e in aws_vpc_endpoint.gateway : k => e.id }, { for k, e in aws_vpc_endpoint.interface : k => e.id })
+output "gateway_endpoint_ids" {
+  description = "Gateway endpoint IDs, by service short name"
+  value       = { for k, e in aws_vpc_endpoint.gateway : k => e.id }
+}
+
+output "interface_endpoint_ids" {
+  description = "Interface endpoint IDs, by service short name"
+  value       = { for k, e in aws_vpc_endpoint.interface : k => e.id }
 }
 
 output "vpc_endpoints_security_group_id" {
