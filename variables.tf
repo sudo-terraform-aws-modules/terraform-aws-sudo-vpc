@@ -719,14 +719,319 @@ variable "create_egress_only_igw" {
   type        = bool
   default     = true
 }
+
+
+################################################################################
+# Intra subnets
+################################################################################
+
+variable "intra_subnets" {
+  description = "Intra subnets: no route to or from the internet. Created only from this list, never carved."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "intra_subnet_assign_ipv6_address_on_creation" {
+  description = "Assign IPv6 addresses on creation in intra subnets. null uses assign_ipv6_address_on_creation."
+  type        = bool
+  default     = null
+}
+
+variable "intra_subnet_ipv6_prefixes" {
+  description = "IPv6 prefix numbers for the intra subnets, carved as /64s from the VPC IPv6 range. One per subnet, in order."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "intra_subnet_names" {
+  description = "Names for the intra subnets, in order. Defaults to <name>-<intra_subnet_suffix>-<az>."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "intra_subnet_suffix" {
+  description = "Suffix for intra subnet and route table names"
+  type        = string
+  default     = "intra"
+}
+
+variable "intra_subnet_tags" {
+  description = "Additional tags for the intra subnets"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "intra_route_table_tags" {
+  description = "Additional tags for the intra route table"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "propagate_intra_route_tables_vgw" {
+  description = "Propagate VPN gateway routes into the intra route table"
+  type        = bool
+  default     = false
+}
+
+################################################################################
+# ElastiCache subnets
+################################################################################
+
+variable "elasticache_subnets" {
+  description = "ElastiCache subnets. Created only from this list, never carved."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "elasticache_subnet_assign_ipv6_address_on_creation" {
+  description = "Assign IPv6 addresses on creation in ElastiCache subnets. null uses assign_ipv6_address_on_creation."
+  type        = bool
+  default     = null
+}
+
+variable "elasticache_subnet_ipv6_prefixes" {
+  description = "IPv6 prefix numbers for the ElastiCache subnets, carved as /64s from the VPC IPv6 range. One per subnet, in order."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "elasticache_subnet_names" {
+  description = "Names for the ElastiCache subnets, in order. Defaults to <name>-<elasticache_subnet_suffix>-<az>."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "elasticache_subnet_suffix" {
+  description = "Suffix for ElastiCache subnet and route table names"
+  type        = string
+  default     = "elasticache"
+}
+
+variable "elasticache_subnet_tags" {
+  description = "Additional tags for the ElastiCache subnets"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "create_elasticache_subnet_group" {
+  description = "Create a ElastiCache subnet group from the ElastiCache subnets"
+  type        = bool
+  default     = true
+}
+
+variable "elasticache_subnet_group_name" {
+  description = "Name of the ElastiCache subnet group. Defaults to name."
+  type        = string
+  default     = null
+}
+
+variable "elasticache_subnet_group_tags" {
+  description = "Additional tags for the ElastiCache subnet group"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "create_elasticache_subnet_route_table" {
+  description = "Give the ElastiCache subnets their own route table, with no route out of the VPC. Without it they use the VPC default route table."
+  type        = bool
+  default     = false
+}
+
+variable "elasticache_route_table_tags" {
+  description = "Additional tags for the ElastiCache route table"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+################################################################################
+# Redshift subnets
+################################################################################
+
+variable "redshift_subnets" {
+  description = "Redshift subnets. Created only from this list, never carved."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "redshift_subnet_assign_ipv6_address_on_creation" {
+  description = "Assign IPv6 addresses on creation in Redshift subnets. null uses assign_ipv6_address_on_creation."
+  type        = bool
+  default     = null
+}
+
+variable "redshift_subnet_ipv6_prefixes" {
+  description = "IPv6 prefix numbers for the Redshift subnets, carved as /64s from the VPC IPv6 range. One per subnet, in order."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "redshift_subnet_names" {
+  description = "Names for the Redshift subnets, in order. Defaults to <name>-<redshift_subnet_suffix>-<az>."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "redshift_subnet_suffix" {
+  description = "Suffix for Redshift subnet and route table names"
+  type        = string
+  default     = "redshift"
+}
+
+variable "redshift_subnet_tags" {
+  description = "Additional tags for the Redshift subnets"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "create_redshift_subnet_group" {
+  description = "Create a Redshift subnet group from the Redshift subnets"
+  type        = bool
+  default     = true
+}
+
+variable "redshift_subnet_group_name" {
+  description = "Name of the Redshift subnet group. Defaults to name."
+  type        = string
+  default     = null
+}
+
+variable "redshift_subnet_group_tags" {
+  description = "Additional tags for the Redshift subnet group"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "create_redshift_subnet_route_table" {
+  description = "Give the Redshift subnets their own route table, with no route out of the VPC. Without it they use the VPC default route table."
+  type        = bool
+  default     = false
+}
+
+variable "redshift_route_table_tags" {
+  description = "Additional tags for the Redshift route table"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+################################################################################
+# Network ACLs
+################################################################################
+
+variable "public_dedicated_network_acl" {
+  description = "Give the public subnets a dedicated network ACL instead of the VPC default one"
+  type        = bool
+  default     = false
+}
+
+variable "public_inbound_acl_rules" {
+  description = "Inbound rules for the dedicated public network ACL. null allows VPC traffic, HTTP and HTTPS from anywhere, and ephemeral ports for replies, IPv6 included when enable_ipv6 is set. NACLs are stateless, so custom rules must allow replies too."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "public_outbound_acl_rules" {
+  description = "Outbound rules for the dedicated public network ACL. null allows all traffic."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "public_acl_tags" {
+  description = "Additional tags for the dedicated public network ACL"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "private_dedicated_network_acl" {
+  description = "Give the private subnets a dedicated network ACL instead of the VPC default one"
+  type        = bool
+  default     = false
+}
+
+variable "private_inbound_acl_rules" {
+  description = "Inbound rules for the dedicated private network ACL. null allows VPC traffic and ephemeral ports for replies, IPv6 included when enable_ipv6 is set. NACLs are stateless, so custom rules must allow replies too."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "private_outbound_acl_rules" {
+  description = "Outbound rules for the dedicated private network ACL. null allows all traffic."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "private_acl_tags" {
+  description = "Additional tags for the dedicated private network ACL"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
 variable "database_dedicated_network_acl" {
-  description = "Whether to give the database subnets a dedicated network ACL with database_inbound_acl_rules and database_outbound_acl_rules, instead of the VPC default NACL"
+  description = "Give the database subnets a dedicated network ACL instead of the VPC default one"
   type        = bool
   default     = false
 }
 
 variable "database_inbound_acl_rules" {
-  description = "Inbound rules for the dedicated database network ACL, used when database_dedicated_network_acl is true. NACLs are stateless, so allow return traffic for anything the subnets reach out to. Set cidr_block or ipv6_cidr_block on each rule. Default: allow all."
+  description = "Inbound rules for the dedicated database network ACL. null allows VPC traffic and ephemeral ports for replies, IPv6 included when enable_ipv6 is set. NACLs are stateless, so custom rules must allow replies too."
   type = list(object({
     rule_number     = number
     rule_action     = string
@@ -738,16 +1043,11 @@ variable "database_inbound_acl_rules" {
     cidr_block      = optional(string)
     ipv6_cidr_block = optional(string)
   }))
-  default = [{
-    rule_number = 100
-    rule_action = "allow"
-    protocol    = "-1"
-    cidr_block  = "0.0.0.0/0"
-  }]
+  default = null
 }
 
 variable "database_outbound_acl_rules" {
-  description = "Outbound rules for the dedicated database network ACL, used when database_dedicated_network_acl is true. Same shape as database_inbound_acl_rules. Default: allow all."
+  description = "Outbound rules for the dedicated database network ACL. null allows all traffic."
   type = list(object({
     rule_number     = number
     rule_action     = string
@@ -759,10 +1059,294 @@ variable "database_outbound_acl_rules" {
     cidr_block      = optional(string)
     ipv6_cidr_block = optional(string)
   }))
-  default = [{
-    rule_number = 100
-    rule_action = "allow"
-    protocol    = "-1"
-    cidr_block  = "0.0.0.0/0"
-  }]
+  default = null
+}
+
+variable "database_acl_tags" {
+  description = "Additional tags for the dedicated database network ACL"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "intra_dedicated_network_acl" {
+  description = "Give the intra subnets a dedicated network ACL instead of the VPC default one"
+  type        = bool
+  default     = false
+}
+
+variable "intra_inbound_acl_rules" {
+  description = "Inbound rules for the dedicated intra network ACL. null allows VPC traffic only, IPv6 included when enable_ipv6 is set. NACLs are stateless, so custom rules must allow replies too."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "intra_outbound_acl_rules" {
+  description = "Outbound rules for the dedicated intra network ACL. null allows VPC traffic only."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "intra_acl_tags" {
+  description = "Additional tags for the dedicated intra network ACL"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "elasticache_dedicated_network_acl" {
+  description = "Give the ElastiCache subnets a dedicated network ACL instead of the VPC default one"
+  type        = bool
+  default     = false
+}
+
+variable "elasticache_inbound_acl_rules" {
+  description = "Inbound rules for the dedicated ElastiCache network ACL. null allows VPC traffic and ephemeral ports for replies, IPv6 included when enable_ipv6 is set. NACLs are stateless, so custom rules must allow replies too."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "elasticache_outbound_acl_rules" {
+  description = "Outbound rules for the dedicated ElastiCache network ACL. null allows all traffic."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "elasticache_acl_tags" {
+  description = "Additional tags for the dedicated ElastiCache network ACL"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "redshift_dedicated_network_acl" {
+  description = "Give the Redshift subnets a dedicated network ACL instead of the VPC default one"
+  type        = bool
+  default     = false
+}
+
+variable "redshift_inbound_acl_rules" {
+  description = "Inbound rules for the dedicated Redshift network ACL. null allows VPC traffic and ephemeral ports for replies, IPv6 included when enable_ipv6 is set. NACLs are stateless, so custom rules must allow replies too."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "redshift_outbound_acl_rules" {
+  description = "Outbound rules for the dedicated Redshift network ACL. null allows all traffic."
+  type = list(object({
+    rule_number     = number
+    rule_action     = string
+    protocol        = string
+    from_port       = optional(number, 0)
+    to_port         = optional(number, 0)
+    icmp_type       = optional(number)
+    icmp_code       = optional(number)
+    cidr_block      = optional(string)
+    ipv6_cidr_block = optional(string)
+  }))
+  default = null
+}
+
+variable "redshift_acl_tags" {
+  description = "Additional tags for the dedicated Redshift network ACL"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+################################################################################
+# VPC endpoints
+################################################################################
+
+variable "gateway_endpoints" {
+  description = "Gateway endpoints to create, attached to every route table the module creates. Gateway endpoints are free and keep S3 and DynamoDB traffic off NAT. Set to [] to create none."
+  type        = set(string)
+  default     = ["s3", "dynamodb"]
+  nullable    = false
+
+  validation {
+    condition     = alltrue([for s in var.gateway_endpoints : contains(["s3", "dynamodb"], s)])
+    error_message = "gateway_endpoints can only contain \"s3\" and \"dynamodb\"."
+  }
+}
+
+variable "interface_endpoints" {
+  description = "Interface endpoints to create, by service short name, for example [\"ecr.api\", \"ecr.dkr\", \"ssm\", \"logs\", \"sts\"]. Each one costs per AZ per hour, so none are created by default."
+  type        = set(string)
+  default     = []
+  nullable    = false
+}
+
+variable "interface_endpoint_subnet_ids" {
+  description = "Subnets for the interface endpoints, at most one per AZ. Defaults to the private subnets, one per AZ."
+  type        = list(string)
+  default     = null
+}
+
+variable "interface_endpoint_security_group_ids" {
+  description = "Extra security groups for the interface endpoints, on top of the one the module creates that allows HTTPS from the VPC"
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "interface_endpoint_private_dns_enabled" {
+  description = "Turn on private DNS for the interface endpoints, so the public service names resolve to them inside the VPC. Turn it off when you manage those names in your own Route 53 private zones."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "vpc_endpoint_tags" {
+  description = "Additional tags for the VPC endpoints and the endpoint security group"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+################################################################################
+# DHCP options
+################################################################################
+
+variable "enable_dhcp_options" {
+  description = "Create a DHCP options set and associate it with the VPC. Without it the VPC uses the region's default set."
+  type        = bool
+  default     = false
+}
+
+variable "dhcp_options_domain_name" {
+  description = "Domain name for the DHCP options set, for example corp.example.com"
+  type        = string
+  default     = null
+}
+
+variable "dhcp_options_domain_name_servers" {
+  description = "DNS servers for the DHCP options set"
+  type        = list(string)
+  default     = ["AmazonProvidedDNS"]
+  nullable    = false
+}
+
+variable "dhcp_options_ntp_servers" {
+  description = "NTP servers for the DHCP options set"
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "dhcp_options_netbios_name_servers" {
+  description = "NetBIOS name servers for the DHCP options set"
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "dhcp_options_netbios_node_type" {
+  description = "NetBIOS node type for the DHCP options set. AWS recommends 2."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.dhcp_options_netbios_node_type == null || contains(["1", "2", "4", "8"], coalesce(var.dhcp_options_netbios_node_type, "x"))
+    error_message = "dhcp_options_netbios_node_type must be 1, 2, 4 or 8."
+  }
+}
+
+variable "dhcp_options_ipv6_address_preferred_lease_time" {
+  description = "Preferred lease time for IPv6 addresses, in seconds"
+  type        = number
+  default     = null
+}
+
+variable "dhcp_options_tags" {
+  description = "Additional tags for the DHCP options set"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+################################################################################
+# Block Public Access exclusions
+################################################################################
+
+variable "vpc_block_public_access_exclusion_mode" {
+  description = "Exclude the whole VPC from account-level VPC Block Public Access: allow-bidirectional or allow-egress. null creates no exclusion. The module never changes the account-level setting itself."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.vpc_block_public_access_exclusion_mode == null || contains(["allow-bidirectional", "allow-egress"], coalesce(var.vpc_block_public_access_exclusion_mode, "-"))
+    error_message = "vpc_block_public_access_exclusion_mode must be allow-bidirectional, allow-egress or null."
+  }
+}
+
+variable "public_subnets_block_public_access_exclusion_mode" {
+  description = "Exclude each public subnet from account-level VPC Block Public Access: allow-bidirectional or allow-egress. null creates no exclusions."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.public_subnets_block_public_access_exclusion_mode == null || contains(["allow-bidirectional", "allow-egress"], coalesce(var.public_subnets_block_public_access_exclusion_mode, "-"))
+    error_message = "public_subnets_block_public_access_exclusion_mode must be allow-bidirectional, allow-egress or null."
+  }
+}
+
+################################################################################
+# DNS64
+################################################################################
+
+variable "private_subnet_enable_dns64" {
+  description = "Turn on DNS64 in the IPv6 private subnets and route 64:ff9b::/96 through the NAT gateways, so IPv6-only workloads can reach IPv4-only services. Needs enable_ipv6, private_subnet_ipv6_prefixes and enable_nat_gateway."
+  type        = bool
+  default     = false
 }

@@ -516,13 +516,23 @@ run "database_network_acl_default_rules" {
   }
 
   assert {
-    condition     = length(aws_network_acl_rule.database_inbound) == 1 && length(aws_network_acl_rule.database_outbound) == 1
-    error_message = "The dedicated database NACL must not deny all traffic by default."
+    condition     = aws_network_acl.this["database"].subnet_ids == toset(aws_subnet.database[*].id)
+    error_message = "The dedicated database NACL must hold the database subnets."
   }
 
   assert {
-    condition     = aws_network_acl_rule.database_inbound[0].rule_action == "allow" && aws_network_acl_rule.database_inbound[0].protocol == "-1" && aws_network_acl_rule.database_outbound[0].egress
-    error_message = "Default database NACL rules must allow all traffic in and out."
+    condition     = aws_network_acl_rule.this["database-ingress-100"].cidr_block == "10.0.0.0/16" && aws_network_acl_rule.this["database-ingress-100"].protocol == "-1"
+    error_message = "The database NACL must allow all traffic from the VPC."
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["database-ingress-200"].from_port == 1024 && aws_network_acl_rule.this["database-ingress-200"].cidr_block == "0.0.0.0/0" && !contains(keys(aws_network_acl_rule.this), "database-ingress-300")
+    error_message = "The database NACL must allow replies on ephemeral ports, and nothing else from outside the VPC."
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["database-egress-100"].egress && aws_network_acl_rule.this["database-egress-100"].cidr_block == "0.0.0.0/0"
+    error_message = "The database NACL must allow all outbound traffic."
   }
 }
 
@@ -530,7 +540,6 @@ run "database_network_acl_custom_rules" {
   command = plan
 
   variables {
-    cidr                           = "10.0.0.0/16"
     database_dedicated_network_acl = true
     database_inbound_acl_rules = [
       { rule_number = 100, rule_action = "allow", protocol = "tcp", from_port = 5432, to_port = 5432, cidr_block = "10.0.0.0/16" },
@@ -539,12 +548,12 @@ run "database_network_acl_custom_rules" {
   }
 
   assert {
-    condition     = length(aws_network_acl_rule.database_inbound) == 2 && aws_network_acl_rule.database_inbound[0].from_port == 5432 && aws_network_acl_rule.database_inbound[0].cidr_block == "10.0.0.0/16"
-    error_message = "Custom inbound rules must be created as given."
+    condition     = length([for k in keys(aws_network_acl_rule.this) : k if startswith(k, "database-ingress-")]) == 2 && aws_network_acl_rule.this["database-ingress-100"].from_port == 5432
+    error_message = "Custom inbound rules must replace the defaults."
   }
 
   assert {
-    condition     = !aws_network_acl_rule.database_inbound[0].egress && length(aws_network_acl_rule.database_outbound) == 1
+    condition     = !aws_network_acl_rule.this["database-ingress-100"].egress && aws_network_acl_rule.this["database-egress-100"].egress
     error_message = "Inbound rules must be ingress, and outbound keeps its default."
   }
 }
@@ -881,5 +890,530 @@ run "no_private_ipv6_egress_without_ipv6" {
   assert {
     condition     = length(aws_egress_only_internet_gateway.this) == 0 && length(aws_route.private_ipv6_egress) == 0
     error_message = "Without IPv6 there must be no egress-only gateway or IPv6 routes."
+  }
+}
+
+# Issue #13: outputs.
+
+run "outputs" {
+  command = apply
+
+  variables {
+    enable_nat_gateway                 = true
+    single_nat_gateway                 = true
+    create_database_subnet_route_table = true
+  }
+
+  assert {
+    condition     = output.igw_id == aws_internet_gateway.this[0].id && output.natgw_ids == aws_nat_gateway.this[*].id && length(output.nat_public_ips) == 1
+    error_message = "Gateway outputs must expose the IGW and NAT gateways."
+  }
+
+  assert {
+    condition     = output.database_subnets_cidr_blocks == tolist(["10.0.32.0/24", "10.0.33.0/24", "10.0.34.0/24"]) && length(output.database_subnet_arns) == 3 && output.database_route_table_ids == aws_route_table.database[*].id
+    error_message = "Database outputs must expose the subnets and route tables."
+  }
+
+  assert {
+    condition     = output.azs == tolist(["eu-west-1a", "eu-west-1b", "eu-west-1c"])
+    error_message = "azs output must return the AZs in use."
+  }
+
+  assert {
+    condition     = output.vpc_flow_log_cloudwatch_log_group_arn == aws_cloudwatch_log_group.flow_log[0].arn && output.vpc_flow_log_destination_arn == aws_cloudwatch_log_group.flow_log[0].arn && output.vpc_flow_log_id == aws_flow_log.default[0].id
+    error_message = "Flow log outputs must expose the flow log and its log group."
+  }
+}
+
+run "outputs_null_without_vpc" {
+  command = plan
+
+  variables {
+    create_vpc = false
+  }
+
+  assert {
+    condition     = output.igw_id == null && output.vpc_flow_log_id == null && output.vpc_flow_log_destination_arn == null && output.natgw_ids == []
+    error_message = "Outputs must be null or empty when nothing is created."
+  }
+}
+
+run "intra_subnets" {
+  command = apply
+
+  variables {
+    intra_subnets                    = ["10.0.48.0/24", "10.0.49.0/24"]
+    enable_nat_gateway               = true
+    enable_vpn_gateway               = true
+    propagate_intra_route_tables_vgw = true
+  }
+
+  assert {
+    condition     = output.intra_subnets_cidr_blocks == tolist(["10.0.48.0/24", "10.0.49.0/24"]) && aws_subnet.intra[1].availability_zone == "eu-west-1b"
+    error_message = "Intra subnets must be created from the given list, spread across azs."
+  }
+
+  assert {
+    condition     = length(aws_route_table.intra) == 1 && aws_route_table_association.intra[*].route_table_id == [aws_route_table.intra[0].id, aws_route_table.intra[0].id]
+    error_message = "All intra subnets must share one intra route table."
+  }
+
+  assert {
+    condition     = length(aws_vpn_gateway_route_propagation.intra) == 1
+    error_message = "VGW routes must propagate into the intra route table when asked."
+  }
+}
+
+run "no_intra_subnets_by_default" {
+  command = plan
+
+  assert {
+    condition     = length(aws_subnet.intra) == 0 && length(aws_route_table.intra) == 0
+    error_message = "Intra subnets are never carved."
+  }
+}
+
+run "elasticache_and_redshift_subnets" {
+  command = apply
+
+  variables {
+    elasticache_subnets                = ["10.0.64.0/24", "10.0.65.0/24"]
+    redshift_subnets                   = ["10.0.80.0/24", "10.0.81.0/24"]
+    create_redshift_subnet_route_table = true
+    redshift_subnet_group_name         = "Unit-Test-Redshift"
+  }
+
+  assert {
+    condition     = output.elasticache_subnets_cidr_blocks == tolist(["10.0.64.0/24", "10.0.65.0/24"]) && output.elasticache_subnet_group_name == "unit-test"
+    error_message = "ElastiCache subnets and their subnet group must be created from the given list."
+  }
+
+  assert {
+    condition     = length(aws_route_table.elasticache) == 0 && length(aws_route_table_association.elasticache) == 0
+    error_message = "ElastiCache subnets get no route table unless asked."
+  }
+
+  assert {
+    condition     = output.redshift_subnet_group_name == "unit-test-redshift" && aws_redshift_subnet_group.redshift[0].subnet_ids == toset(aws_subnet.redshift[*].id)
+    error_message = "The Redshift subnet group must hold the Redshift subnets, with a lower-case name."
+  }
+
+  assert {
+    condition     = length(aws_route_table.redshift) == 1 && aws_route_table_association.redshift[*].route_table_id == [aws_route_table.redshift[0].id, aws_route_table.redshift[0].id]
+    error_message = "Redshift subnets must share their own route table when asked."
+  }
+}
+
+run "no_elasticache_or_redshift_by_default" {
+  command = plan
+
+  assert {
+    condition     = length(aws_subnet.elasticache) == 0 && length(aws_subnet.redshift) == 0 && length(aws_elasticache_subnet_group.elasticache) == 0 && length(aws_redshift_subnet_group.redshift) == 0
+    error_message = "ElastiCache and Redshift subnets are never carved."
+  }
+}
+
+run "public_network_acl_default_rules" {
+  command = plan
+
+  variables {
+    public_dedicated_network_acl = true
+    secondary_cidr_blocks        = ["100.64.0.0/16"]
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["public-ingress-310"].from_port == 443 && aws_network_acl_rule.this["public-ingress-300"].from_port == 80 && aws_network_acl_rule.this["public-ingress-300"].cidr_block == "0.0.0.0/0"
+    error_message = "The public NACL must allow HTTP and HTTPS from anywhere."
+  }
+
+  assert {
+    condition     = alltrue([for k, r in aws_network_acl_rule.this : r.egress || r.cidr_block != "0.0.0.0/0" || r.protocol == "udp" || r.from_port > 3389 || r.to_port < 3389])
+    error_message = "No default rule may open RDP (3389) to the internet."
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["public-ingress-101"].cidr_block == "100.64.0.0/16"
+    error_message = "VPC rules must cover secondary CIDR blocks."
+  }
+
+  assert {
+    condition     = length(aws_network_acl.this) == 1 && contains(keys(aws_network_acl.this), "public")
+    error_message = "Only the tiers asked for get a dedicated NACL."
+  }
+}
+
+run "intra_network_acl_stays_inside_vpc" {
+  command = plan
+
+  variables {
+    intra_subnets               = ["10.0.48.0/24"]
+    intra_dedicated_network_acl = true
+  }
+
+  assert {
+    condition     = toset([for k, r in aws_network_acl_rule.this : r.cidr_block]) == toset(["10.0.0.0/16"])
+    error_message = "The intra NACL must only allow VPC traffic."
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["intra-egress-100"].egress && aws_network_acl_rule.this["intra-ingress-100"].protocol == "-1"
+    error_message = "The intra NACL must allow VPC traffic both ways."
+  }
+}
+
+run "network_acls_with_ipv6" {
+  command = apply
+
+  variables {
+    enable_ipv6                    = true
+    private_dedicated_network_acl  = true
+    redshift_subnets               = ["10.0.80.0/24"]
+    redshift_dedicated_network_acl = true
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["private-ingress-150"].ipv6_cidr_block == "2600:1f18:abcd:1200::/56" && aws_network_acl_rule.this["private-ingress-220"].ipv6_cidr_block == "::/0"
+    error_message = "With IPv6 on, the private NACL must allow VPC IPv6 traffic and IPv6 replies."
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["private-egress-110"].ipv6_cidr_block == "::/0" && aws_network_acl.this["redshift"].subnet_ids == toset(aws_subnet.redshift[*].id)
+    error_message = "IPv6 egress must be allowed, and the Redshift NACL must hold its subnets."
+  }
+}
+
+run "no_dedicated_network_acls_by_default" {
+  command = plan
+
+  variables {
+    intra_subnets       = ["10.0.48.0/24"]
+    elasticache_subnets = ["10.0.64.0/24"]
+  }
+
+  assert {
+    condition     = length(aws_network_acl.this) == 0 && length(aws_network_acl_rule.this) == 0
+    error_message = "Dedicated NACLs are opt-in."
+  }
+}
+
+run "gateway_endpoints_by_default" {
+  command = apply
+
+  variables {
+    enable_nat_gateway                 = true
+    one_nat_gateway_per_az             = true
+    create_database_subnet_route_table = true
+    intra_subnets                      = ["10.0.48.0/24"]
+  }
+
+  assert {
+    condition     = toset(keys(aws_vpc_endpoint.gateway)) == toset(["s3", "dynamodb"]) && length(aws_vpc_endpoint.interface) == 0
+    error_message = "S3 and DynamoDB gateway endpoints must be on by default, with no interface endpoints."
+  }
+
+  assert {
+    condition = aws_vpc_endpoint.gateway["s3"].route_table_ids == toset(concat(
+      aws_route_table.public[*].id, aws_route_table.private[*].id, aws_route_table.database[*].id, aws_route_table.intra[*].id,
+    )) && length(aws_vpc_endpoint.gateway["s3"].route_table_ids) == 8
+    error_message = "Gateway endpoints must be attached to every route table the module creates."
+  }
+}
+
+run "no_gateway_endpoints_when_empty" {
+  command = plan
+
+  variables {
+    gateway_endpoints = []
+  }
+
+  assert {
+    condition     = length(aws_vpc_endpoint.gateway) == 0
+    error_message = "gateway_endpoints = [] must create no endpoints."
+  }
+}
+
+run "rejects_unknown_gateway_endpoint" {
+  command = plan
+
+  variables {
+    gateway_endpoints = ["s3", "sqs"]
+  }
+
+  expect_failures = [var.gateway_endpoints]
+}
+
+run "interface_endpoints" {
+  command = apply
+
+  variables {
+    interface_endpoints = ["ssm", "sts"]
+  }
+
+  assert {
+    condition     = length(aws_vpc_endpoint.interface) == 2 && aws_vpc_endpoint.interface["sts"].subnet_ids == toset(aws_subnet.private[*].id) && aws_vpc_endpoint.interface["sts"].private_dns_enabled
+    error_message = "Interface endpoints must go in the private subnets with private DNS."
+  }
+
+  assert {
+    condition     = aws_vpc_endpoint.interface["ssm"].security_group_ids == toset([aws_security_group.vpc_endpoints[0].id]) && aws_vpc_security_group_ingress_rule.vpc_endpoints[0].cidr_ipv4 == "10.0.0.0/16" && aws_vpc_security_group_ingress_rule.vpc_endpoints[0].from_port == 443
+    error_message = "The endpoint security group must allow HTTPS from the VPC."
+  }
+}
+
+run "interface_endpoints_one_subnet_per_az" {
+  command = plan
+
+  variables {
+    azs                 = ["eu-west-1a", "eu-west-1b"]
+    public_subnets      = ["10.0.0.0/24", "10.0.1.0/24"]
+    private_subnets     = ["10.0.16.0/24", "10.0.17.0/24", "10.0.18.0/24", "10.0.19.0/24"]
+    interface_endpoints = ["logs"]
+  }
+
+  assert {
+    condition     = length(aws_vpc_endpoint.interface["logs"].subnet_ids) == 2
+    error_message = "Interface endpoints must use one private subnet per AZ."
+  }
+}
+
+run "rejects_interface_endpoints_without_dns_hostnames" {
+  command = plan
+
+  variables {
+    enable_dns_hostnames = false
+    interface_endpoints  = ["sts"]
+  }
+
+  expect_failures = [aws_vpc_endpoint.interface["sts"]]
+}
+
+run "dhcp_options" {
+  command = apply
+
+  variables {
+    enable_dhcp_options      = true
+    dhcp_options_domain_name = "corp.example.com"
+    dhcp_options_ntp_servers = ["169.254.169.123"]
+  }
+
+  assert {
+    condition     = aws_vpc_dhcp_options.this[0].domain_name == "corp.example.com" && aws_vpc_dhcp_options.this[0].domain_name_servers == tolist(["AmazonProvidedDNS"]) && aws_vpc_dhcp_options.this[0].ntp_servers == tolist(["169.254.169.123"])
+    error_message = "The DHCP options set must use the given values and Amazon DNS by default."
+  }
+
+  assert {
+    condition     = aws_vpc_dhcp_options_association.this[0].dhcp_options_id == aws_vpc_dhcp_options.this[0].id && aws_vpc_dhcp_options_association.this[0].vpc_id == aws_vpc.this[0].id && output.dhcp_options_id == aws_vpc_dhcp_options.this[0].id
+    error_message = "The DHCP options set must be associated with the VPC."
+  }
+}
+
+run "no_dhcp_options_by_default" {
+  command = plan
+
+  assert {
+    condition     = length(aws_vpc_dhcp_options.this) == 0 && length(aws_vpc_dhcp_options_association.this) == 0
+    error_message = "DHCP options are opt-in."
+  }
+}
+
+run "block_public_access_exclusions" {
+  command = apply
+
+  variables {
+    vpc_block_public_access_exclusion_mode            = "allow-egress"
+    public_subnets_block_public_access_exclusion_mode = "allow-bidirectional"
+  }
+
+  assert {
+    condition     = aws_vpc_block_public_access_exclusion.vpc[0].vpc_id == aws_vpc.this[0].id && aws_vpc_block_public_access_exclusion.vpc[0].internet_gateway_exclusion_mode == "allow-egress"
+    error_message = "The VPC exclusion must use the given mode."
+  }
+
+  assert {
+    condition     = aws_vpc_block_public_access_exclusion.public_subnets[*].subnet_id == aws_subnet.public[*].id && aws_vpc_block_public_access_exclusion.public_subnets[0].internet_gateway_exclusion_mode == "allow-bidirectional"
+    error_message = "Each public subnet must get its own exclusion."
+  }
+}
+
+run "no_block_public_access_exclusions_by_default" {
+  command = plan
+
+  assert {
+    condition     = length(aws_vpc_block_public_access_exclusion.vpc) == 0 && length(aws_vpc_block_public_access_exclusion.public_subnets) == 0
+    error_message = "Block Public Access exclusions are opt-in."
+  }
+}
+
+run "rejects_invalid_exclusion_mode" {
+  command = plan
+
+  variables {
+    vpc_block_public_access_exclusion_mode = "block-bidirectional"
+  }
+
+  expect_failures = [var.vpc_block_public_access_exclusion_mode]
+}
+
+run "private_dns64" {
+  command = apply
+
+  variables {
+    enable_ipv6                  = true
+    public_subnet_ipv6_prefixes  = [0, 1, 2]
+    private_subnet_ipv6_prefixes = [3, 4, 5]
+    enable_nat_gateway           = true
+    one_nat_gateway_per_az       = true
+    private_subnet_enable_dns64  = true
+  }
+
+  assert {
+    condition     = alltrue(aws_subnet.private[*].enable_dns64) && !anytrue(aws_subnet.public[*].enable_dns64)
+    error_message = "DNS64 must be on in the private subnets only."
+  }
+
+  assert {
+    condition     = length(aws_route.private_dns64_nat_gateway) == 3 && aws_route.private_dns64_nat_gateway[*].nat_gateway_id == aws_nat_gateway.this[*].id && aws_route.private_dns64_nat_gateway[0].destination_ipv6_cidr_block == "64:ff9b::/96"
+    error_message = "Each private route table must send 64:ff9b::/96 to its NAT gateway."
+  }
+}
+
+run "rejects_dns64_without_nat" {
+  command = plan
+
+  variables {
+    enable_ipv6                  = true
+    private_subnet_ipv6_prefixes = [3, 4, 5]
+    private_subnet_enable_dns64  = true
+  }
+
+  expect_failures = [aws_vpc.this]
+}
+
+# PR #27 review fixes.
+
+run "network_acl_rule_numbers_with_many_cidrs" {
+  command = apply
+
+  variables {
+    secondary_cidr_blocks         = [for i in range(1, 11) : "10.${i}.0.0/16"]
+    enable_ipv6                   = true
+    private_dedicated_network_acl = true
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["private-ingress-110"].cidr_block == "10.10.0.0/16" && aws_network_acl_rule.this["private-ingress-150"].ipv6_cidr_block == "2600:1f18:abcd:1200::/56"
+    error_message = "With 11 IPv4 CIDRs the VPC IPv4 rules must end at 110 and the IPv6 rule must stay at 150."
+  }
+}
+
+run "rejects_dns64_without_ipv6" {
+  command = plan
+
+  variables {
+    enable_nat_gateway          = true
+    private_subnet_enable_dns64 = true
+  }
+
+  expect_failures = [aws_vpc.this]
+}
+
+run "rejects_dns64_without_private_ipv6_prefixes" {
+  command = plan
+
+  variables {
+    enable_ipv6                 = true
+    enable_nat_gateway          = true
+    private_subnet_enable_dns64 = true
+  }
+
+  expect_failures = [aws_vpc.this]
+}
+
+run "vpc_ipv6_cidr_block_null_without_ipv6" {
+  command = apply
+
+  assert {
+    condition     = output.vpc_ipv6_cidr_block == null
+    error_message = "vpc_ipv6_cidr_block must be null when IPv6 is off, not an empty string."
+  }
+}
+
+run "vpc_ipv6_cidr_block_with_ipv6" {
+  command = apply
+
+  variables {
+    enable_ipv6 = true
+  }
+
+  assert {
+    condition     = output.vpc_ipv6_cidr_block == "2600:1f18:abcd:1200::/56"
+    error_message = "vpc_ipv6_cidr_block must return the VPC IPv6 block when IPv6 is on."
+  }
+}
+
+run "rejects_invalid_netbios_node_type" {
+  command = plan
+
+  variables {
+    enable_dhcp_options            = true
+    dhcp_options_netbios_node_type = "3"
+  }
+
+  expect_failures = [var.dhcp_options_netbios_node_type]
+}
+
+run "interface_endpoints_without_private_dns" {
+  command = plan
+
+  variables {
+    interface_endpoints                    = ["sts"]
+    interface_endpoint_private_dns_enabled = false
+  }
+
+  assert {
+    condition     = !aws_vpc_endpoint.interface["sts"].private_dns_enabled
+    error_message = "interface_endpoint_private_dns_enabled = false must turn private DNS off."
+  }
+}
+
+# With nullable = false, null falls back to the default instead of breaking length().
+run "null_intra_subnets_uses_default" {
+  command = plan
+
+  variables {
+    intra_subnets = null
+  }
+
+  assert {
+    condition     = length(aws_subnet.intra) == 0
+    error_message = "intra_subnets = null must behave like the empty default."
+  }
+}
+
+run "interface_endpoints_without_private_dns_skip_dns_check" {
+  command = plan
+
+  variables {
+    enable_dns_hostnames                   = false
+    interface_endpoints                    = ["sts"]
+    interface_endpoint_private_dns_enabled = false
+  }
+
+  assert {
+    condition     = length(aws_vpc_endpoint.interface) == 1
+    error_message = "Without private DNS, interface endpoints must not need DNS hostnames."
+  }
+}
+
+run "s3_gateway_and_interface_endpoint_ids" {
+  command = apply
+
+  variables {
+    interface_endpoints = ["s3"]
+  }
+
+  assert {
+    condition     = output.gateway_endpoint_ids["s3"] == aws_vpc_endpoint.gateway["s3"].id && output.interface_endpoint_ids["s3"] == aws_vpc_endpoint.interface["s3"].id
+    error_message = "S3 as both a gateway and an interface endpoint must show up in both outputs."
   }
 }

@@ -17,6 +17,9 @@ locals {
 
   azs = var.azs
 
+  # DNS64 only means something on subnets with an IPv6 range.
+  private_dns64 = var.enable_ipv6 && var.private_subnet_enable_dns64 && length(var.private_subnet_ipv6_prefixes) > 0
+
   # Carving splits cidr into four blocks and each block into three subnets, 8 bits in all.
   # A /20 gives /28 subnets, the smallest AWS allows; smaller VPCs are rejected below.
   # One subnet per tier per AZ in var.azs, up to three.
@@ -83,6 +86,11 @@ resource "aws_vpc" "this" {
       condition     = local.use_given_subnets || var.use_ipam_pool || var.cidr == null || try(local.carve_prefix <= 20, false)
       error_message = "Automatic subnet carving needs a VPC of /20 or larger, which gives /28 subnets, the smallest AWS allows. Use a larger cidr or pass public_subnets, private_subnets and database_subnets."
     }
+
+    precondition {
+      condition     = !var.private_subnet_enable_dns64 || (var.enable_ipv6 && length(var.private_subnet_ipv6_prefixes) > 0 && var.enable_nat_gateway)
+      error_message = "private_subnet_enable_dns64 needs IPv6 private subnets (enable_ipv6 and private_subnet_ipv6_prefixes) and enable_nat_gateway = true, because the addresses DNS64 hands out only work through NAT64. Set those, or turn private_subnet_enable_dns64 off."
+    }
   }
 }
 
@@ -131,6 +139,7 @@ resource "aws_subnet" "private" {
   availability_zone               = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) > 0 ? element(local.azs, count.index) : null
   availability_zone_id            = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) == 0 ? element(local.azs, count.index) : null
   assign_ipv6_address_on_creation = var.private_subnet_assign_ipv6_address_on_creation == null ? var.assign_ipv6_address_on_creation : var.private_subnet_assign_ipv6_address_on_creation
+  enable_dns64                    = local.private_dns64
 
   ipv6_cidr_block = var.enable_ipv6 && length(var.private_subnet_ipv6_prefixes) > 0 ? cidrsubnet(aws_vpc.this[0].ipv6_cidr_block, 8, var.private_subnet_ipv6_prefixes[count.index]) : null
 
@@ -312,6 +321,18 @@ resource "aws_route" "private_ipv6_egress" {
   route_table_id              = aws_route_table.private[count.index].id
   destination_ipv6_cidr_block = "::/0"
   egress_only_gateway_id      = aws_egress_only_internet_gateway.this[0].id
+
+  timeouts {
+    create = "5m"
+  }
+}
+
+resource "aws_route" "private_dns64_nat_gateway" {
+  count = local.create_vpc && local.private_dns64 && var.enable_nat_gateway ? local.private_route_table_count : 0
+
+  route_table_id              = aws_route_table.private[count.index].id
+  destination_ipv6_cidr_block = "64:ff9b::/96"
+  nat_gateway_id              = element(aws_nat_gateway.this[*].id, count.index)
 
   timeouts {
     create = "5m"
@@ -661,56 +682,513 @@ resource "aws_route" "database_ipv6_egress" {
     create = "5m"
   }
 }
+
 ################################################################################
-# Database Network ACLs
+# Intra subnets
+# No internet route in either direction. One shared route table.
 ################################################################################
 
 locals {
-  create_database_network_acl = local.create_database_subnets && var.database_dedicated_network_acl
+  create_intra_subnets = local.create_vpc && length(var.intra_subnets) > 0
 }
 
-resource "aws_network_acl" "database" {
-  count = local.create_database_network_acl ? 1 : 0
+resource "aws_subnet" "intra" {
+  count = local.create_intra_subnets ? length(var.intra_subnets) : 0
 
-  vpc_id     = local.vpc_id
-  subnet_ids = aws_subnet.database[*].id
+  vpc_id                          = local.vpc_id
+  cidr_block                      = var.intra_subnets[count.index]
+  availability_zone               = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) > 0 ? element(local.azs, count.index) : null
+  availability_zone_id            = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) == 0 ? element(local.azs, count.index) : null
+  assign_ipv6_address_on_creation = var.intra_subnet_assign_ipv6_address_on_creation == null ? var.assign_ipv6_address_on_creation : var.intra_subnet_assign_ipv6_address_on_creation
+
+  ipv6_cidr_block = var.enable_ipv6 && length(var.intra_subnet_ipv6_prefixes) > 0 ? cidrsubnet(aws_vpc.this[0].ipv6_cidr_block, 8, var.intra_subnet_ipv6_prefixes[count.index]) : null
 
   tags = merge(
-    { "Name" = "${var.name}-${var.database_subnet_suffix}" },
-    var.tags
+    {
+      Name = try(
+        var.intra_subnet_names[count.index],
+        format("${var.name}-${var.intra_subnet_suffix}-%s", element(local.azs, count.index))
+      )
+    },
+    var.tags,
+    var.intra_subnet_tags,
   )
 }
 
-resource "aws_network_acl_rule" "database_inbound" {
-  count = local.create_database_network_acl ? length(var.database_inbound_acl_rules) : 0
+resource "aws_route_table" "intra" {
+  count = local.create_intra_subnets ? 1 : 0
 
-  network_acl_id = aws_network_acl.database[0].id
+  vpc_id = local.vpc_id
 
-  egress          = false
-  rule_number     = var.database_inbound_acl_rules[count.index].rule_number
-  rule_action     = var.database_inbound_acl_rules[count.index].rule_action
-  protocol        = var.database_inbound_acl_rules[count.index].protocol
-  from_port       = var.database_inbound_acl_rules[count.index].from_port
-  to_port         = var.database_inbound_acl_rules[count.index].to_port
-  icmp_type       = var.database_inbound_acl_rules[count.index].icmp_type
-  icmp_code       = var.database_inbound_acl_rules[count.index].icmp_code
-  cidr_block      = var.database_inbound_acl_rules[count.index].cidr_block
-  ipv6_cidr_block = var.database_inbound_acl_rules[count.index].ipv6_cidr_block
+  tags = merge(
+    { "Name" = "${var.name}-${var.intra_subnet_suffix}" },
+    var.tags,
+    var.intra_route_table_tags,
+  )
 }
 
-resource "aws_network_acl_rule" "database_outbound" {
-  count = local.create_database_network_acl ? length(var.database_outbound_acl_rules) : 0
+resource "aws_route_table_association" "intra" {
+  count = local.create_intra_subnets ? length(var.intra_subnets) : 0
 
-  network_acl_id = aws_network_acl.database[0].id
+  subnet_id      = aws_subnet.intra[count.index].id
+  route_table_id = aws_route_table.intra[0].id
+}
 
-  egress          = true
-  rule_number     = var.database_outbound_acl_rules[count.index].rule_number
-  rule_action     = var.database_outbound_acl_rules[count.index].rule_action
-  protocol        = var.database_outbound_acl_rules[count.index].protocol
-  from_port       = var.database_outbound_acl_rules[count.index].from_port
-  to_port         = var.database_outbound_acl_rules[count.index].to_port
-  icmp_type       = var.database_outbound_acl_rules[count.index].icmp_type
-  icmp_code       = var.database_outbound_acl_rules[count.index].icmp_code
-  cidr_block      = var.database_outbound_acl_rules[count.index].cidr_block
-  ipv6_cidr_block = var.database_outbound_acl_rules[count.index].ipv6_cidr_block
+resource "aws_vpn_gateway_route_propagation" "intra" {
+  count = local.propagate_vgw && var.propagate_intra_route_tables_vgw && local.create_intra_subnets ? 1 : 0
+
+  route_table_id = aws_route_table.intra[0].id
+  vpn_gateway_id = local.propagation_vpn_gateway_id
+}
+
+################################################################################
+# ElastiCache subnets
+################################################################################
+
+locals {
+  create_elasticache_subnets     = local.create_vpc && length(var.elasticache_subnets) > 0
+  create_elasticache_route_table = local.create_elasticache_subnets && var.create_elasticache_subnet_route_table
+}
+
+resource "aws_subnet" "elasticache" {
+  count = local.create_elasticache_subnets ? length(var.elasticache_subnets) : 0
+
+  vpc_id                          = local.vpc_id
+  cidr_block                      = var.elasticache_subnets[count.index]
+  availability_zone               = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) > 0 ? element(local.azs, count.index) : null
+  availability_zone_id            = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) == 0 ? element(local.azs, count.index) : null
+  assign_ipv6_address_on_creation = var.elasticache_subnet_assign_ipv6_address_on_creation == null ? var.assign_ipv6_address_on_creation : var.elasticache_subnet_assign_ipv6_address_on_creation
+
+  ipv6_cidr_block = var.enable_ipv6 && length(var.elasticache_subnet_ipv6_prefixes) > 0 ? cidrsubnet(aws_vpc.this[0].ipv6_cidr_block, 8, var.elasticache_subnet_ipv6_prefixes[count.index]) : null
+
+  tags = merge(
+    {
+      Name = try(
+        var.elasticache_subnet_names[count.index],
+        format("${var.name}-${var.elasticache_subnet_suffix}-%s", element(local.azs, count.index))
+      )
+    },
+    var.tags,
+    var.elasticache_subnet_tags,
+  )
+}
+
+resource "aws_elasticache_subnet_group" "elasticache" {
+  count = local.create_elasticache_subnets && var.create_elasticache_subnet_group ? 1 : 0
+
+  name        = lower(coalesce(var.elasticache_subnet_group_name, var.name))
+  description = "ElastiCache subnet group for ${var.name}"
+  subnet_ids  = aws_subnet.elasticache[*].id
+
+  tags = merge(
+    { "Name" = lower(coalesce(var.elasticache_subnet_group_name, var.name)) },
+    var.tags,
+    var.elasticache_subnet_group_tags,
+  )
+}
+
+resource "aws_route_table" "elasticache" {
+  count = local.create_elasticache_route_table ? 1 : 0
+
+  vpc_id = local.vpc_id
+
+  tags = merge(
+    { "Name" = "${var.name}-${var.elasticache_subnet_suffix}" },
+    var.tags,
+    var.elasticache_route_table_tags,
+  )
+}
+
+resource "aws_route_table_association" "elasticache" {
+  count = local.create_elasticache_route_table ? length(var.elasticache_subnets) : 0
+
+  subnet_id      = aws_subnet.elasticache[count.index].id
+  route_table_id = aws_route_table.elasticache[0].id
+}
+
+################################################################################
+# Redshift subnets
+################################################################################
+
+locals {
+  create_redshift_subnets     = local.create_vpc && length(var.redshift_subnets) > 0
+  create_redshift_route_table = local.create_redshift_subnets && var.create_redshift_subnet_route_table
+}
+
+resource "aws_subnet" "redshift" {
+  count = local.create_redshift_subnets ? length(var.redshift_subnets) : 0
+
+  vpc_id                          = local.vpc_id
+  cidr_block                      = var.redshift_subnets[count.index]
+  availability_zone               = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) > 0 ? element(local.azs, count.index) : null
+  availability_zone_id            = length(regexall("^[a-z]{2}-", element(local.azs, count.index))) == 0 ? element(local.azs, count.index) : null
+  assign_ipv6_address_on_creation = var.redshift_subnet_assign_ipv6_address_on_creation == null ? var.assign_ipv6_address_on_creation : var.redshift_subnet_assign_ipv6_address_on_creation
+
+  ipv6_cidr_block = var.enable_ipv6 && length(var.redshift_subnet_ipv6_prefixes) > 0 ? cidrsubnet(aws_vpc.this[0].ipv6_cidr_block, 8, var.redshift_subnet_ipv6_prefixes[count.index]) : null
+
+  tags = merge(
+    {
+      Name = try(
+        var.redshift_subnet_names[count.index],
+        format("${var.name}-${var.redshift_subnet_suffix}-%s", element(local.azs, count.index))
+      )
+    },
+    var.tags,
+    var.redshift_subnet_tags,
+  )
+}
+
+resource "aws_redshift_subnet_group" "redshift" {
+  count = local.create_redshift_subnets && var.create_redshift_subnet_group ? 1 : 0
+
+  name        = lower(coalesce(var.redshift_subnet_group_name, var.name))
+  description = "Redshift subnet group for ${var.name}"
+  subnet_ids  = aws_subnet.redshift[*].id
+
+  tags = merge(
+    { "Name" = lower(coalesce(var.redshift_subnet_group_name, var.name)) },
+    var.tags,
+    var.redshift_subnet_group_tags,
+  )
+}
+
+resource "aws_route_table" "redshift" {
+  count = local.create_redshift_route_table ? 1 : 0
+
+  vpc_id = local.vpc_id
+
+  tags = merge(
+    { "Name" = "${var.name}-${var.redshift_subnet_suffix}" },
+    var.tags,
+    var.redshift_route_table_tags,
+  )
+}
+
+resource "aws_route_table_association" "redshift" {
+  count = local.create_redshift_route_table ? length(var.redshift_subnets) : 0
+
+  subnet_id      = aws_subnet.redshift[count.index].id
+  route_table_id = aws_route_table.redshift[0].id
+}
+
+################################################################################
+# Network ACLs
+# One dedicated NACL per tier, opt-in. Without one a tier uses the default NACL.
+################################################################################
+
+locals {
+  # var.cidr when given, so the rules are known at plan time and scanners can read them.
+  vpc_ipv4_cidrs = local.create_vpc ? concat([var.use_ipam_pool ? aws_vpc.this[0].cidr_block : var.cidr], var.secondary_cidr_blocks) : []
+  nacl_ipv6      = local.create_vpc && var.enable_ipv6
+
+  # Building blocks for the default tier rules. The VPC IPv4 rules take 100-149, one per
+  # CIDR (a VPC can have up to 50), so the VPC IPv6 rule sits at 150. NACLs are stateless,
+  # so ephemeral ports must be open inbound for replies to anything the subnets reach out
+  # to. TCP skips 3389 so RDP is never open to the internet.
+  nacl_rules_from_vpc = concat(
+    [for i, cidr in local.vpc_ipv4_cidrs : { rule_number = 100 + i, rule_action = "allow", protocol = "-1", from_port = 0, to_port = 0, cidr_block = cidr, ipv6_cidr_block = null }],
+    local.nacl_ipv6 ? [{ rule_number = 150, rule_action = "allow", protocol = "-1", from_port = 0, to_port = 0, cidr_block = null, ipv6_cidr_block = aws_vpc.this[0].ipv6_cidr_block }] : [],
+  )
+  nacl_rules_ephemeral = concat(
+    [
+      { rule_number = 200, rule_action = "allow", protocol = "tcp", from_port = 1024, to_port = 3388, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null },
+      { rule_number = 201, rule_action = "allow", protocol = "tcp", from_port = 3390, to_port = 65535, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null },
+      { rule_number = 210, rule_action = "allow", protocol = "udp", from_port = 1024, to_port = 65535, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null },
+    ],
+    local.nacl_ipv6 ? [
+      { rule_number = 220, rule_action = "allow", protocol = "tcp", from_port = 1024, to_port = 3388, cidr_block = null, ipv6_cidr_block = "::/0" },
+      { rule_number = 221, rule_action = "allow", protocol = "tcp", from_port = 3390, to_port = 65535, cidr_block = null, ipv6_cidr_block = "::/0" },
+      { rule_number = 230, rule_action = "allow", protocol = "udp", from_port = 1024, to_port = 65535, cidr_block = null, ipv6_cidr_block = "::/0" },
+    ] : [],
+  )
+  nacl_rules_web = concat(
+    [
+      { rule_number = 300, rule_action = "allow", protocol = "tcp", from_port = 80, to_port = 80, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null },
+      { rule_number = 310, rule_action = "allow", protocol = "tcp", from_port = 443, to_port = 443, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null },
+    ],
+    local.nacl_ipv6 ? [
+      { rule_number = 320, rule_action = "allow", protocol = "tcp", from_port = 80, to_port = 80, cidr_block = null, ipv6_cidr_block = "::/0" },
+      { rule_number = 330, rule_action = "allow", protocol = "tcp", from_port = 443, to_port = 443, cidr_block = null, ipv6_cidr_block = "::/0" },
+    ] : [],
+  )
+  nacl_rules_all_out = concat(
+    [{ rule_number = 100, rule_action = "allow", protocol = "-1", from_port = 0, to_port = 0, cidr_block = "0.0.0.0/0", ipv6_cidr_block = null }],
+    local.nacl_ipv6 ? [{ rule_number = 110, rule_action = "allow", protocol = "-1", from_port = 0, to_port = 0, cidr_block = null, ipv6_cidr_block = "::/0" }] : [],
+  )
+
+  # Public: web traffic in from anywhere. Private tiers: VPC traffic and replies only.
+  # Intra: VPC traffic only, both ways.
+  network_acls = {
+    public = {
+      create   = local.create_vpc && var.public_dedicated_network_acl && length(local.public_subnets) > 0
+      subnets  = aws_subnet.public[*].id
+      suffix   = var.public_subnet_suffix
+      tags     = var.public_acl_tags
+      inbound  = var.public_inbound_acl_rules != null ? var.public_inbound_acl_rules : concat(local.nacl_rules_from_vpc, local.nacl_rules_ephemeral, local.nacl_rules_web)
+      outbound = var.public_outbound_acl_rules != null ? var.public_outbound_acl_rules : local.nacl_rules_all_out
+    }
+    private = {
+      create   = local.create_vpc && var.private_dedicated_network_acl && length(local.private_subnets) > 0
+      subnets  = aws_subnet.private[*].id
+      suffix   = var.private_subnet_suffix
+      tags     = var.private_acl_tags
+      inbound  = var.private_inbound_acl_rules != null ? var.private_inbound_acl_rules : concat(local.nacl_rules_from_vpc, local.nacl_rules_ephemeral)
+      outbound = var.private_outbound_acl_rules != null ? var.private_outbound_acl_rules : local.nacl_rules_all_out
+    }
+    database = {
+      create   = local.create_database_subnets && var.database_dedicated_network_acl
+      subnets  = aws_subnet.database[*].id
+      suffix   = var.database_subnet_suffix
+      tags     = var.database_acl_tags
+      inbound  = var.database_inbound_acl_rules != null ? var.database_inbound_acl_rules : concat(local.nacl_rules_from_vpc, local.nacl_rules_ephemeral)
+      outbound = var.database_outbound_acl_rules != null ? var.database_outbound_acl_rules : local.nacl_rules_all_out
+    }
+    intra = {
+      create   = local.create_intra_subnets && var.intra_dedicated_network_acl
+      subnets  = aws_subnet.intra[*].id
+      suffix   = var.intra_subnet_suffix
+      tags     = var.intra_acl_tags
+      inbound  = var.intra_inbound_acl_rules != null ? var.intra_inbound_acl_rules : local.nacl_rules_from_vpc
+      outbound = var.intra_outbound_acl_rules != null ? var.intra_outbound_acl_rules : local.nacl_rules_from_vpc
+    }
+    elasticache = {
+      create   = local.create_elasticache_subnets && var.elasticache_dedicated_network_acl
+      subnets  = aws_subnet.elasticache[*].id
+      suffix   = var.elasticache_subnet_suffix
+      tags     = var.elasticache_acl_tags
+      inbound  = var.elasticache_inbound_acl_rules != null ? var.elasticache_inbound_acl_rules : concat(local.nacl_rules_from_vpc, local.nacl_rules_ephemeral)
+      outbound = var.elasticache_outbound_acl_rules != null ? var.elasticache_outbound_acl_rules : local.nacl_rules_all_out
+    }
+    redshift = {
+      create   = local.create_redshift_subnets && var.redshift_dedicated_network_acl
+      subnets  = aws_subnet.redshift[*].id
+      suffix   = var.redshift_subnet_suffix
+      tags     = var.redshift_acl_tags
+      inbound  = var.redshift_inbound_acl_rules != null ? var.redshift_inbound_acl_rules : concat(local.nacl_rules_from_vpc, local.nacl_rules_ephemeral)
+      outbound = var.redshift_outbound_acl_rules != null ? var.redshift_outbound_acl_rules : local.nacl_rules_all_out
+    }
+  }
+
+  created_network_acls = { for tier, acl in local.network_acls : tier => acl if acl.create }
+
+  network_acl_rules = merge(flatten([
+    for tier, acl in local.created_network_acls : [
+      { for rule in acl.inbound : "${tier}-ingress-${rule.rule_number}" => merge(rule, { tier = tier, egress = false }) },
+      { for rule in acl.outbound : "${tier}-egress-${rule.rule_number}" => merge(rule, { tier = tier, egress = true }) },
+    ]
+  ])...)
+}
+
+resource "aws_network_acl" "this" {
+  # checkov:skip=CKV2_AWS_1:False positive. Checkov cannot follow subnet_ids through for_each; each NACL is created only when its tier has subnets, and holds them.
+  for_each = local.created_network_acls
+
+  vpc_id     = local.vpc_id
+  subnet_ids = each.value.subnets
+
+  tags = merge(
+    { "Name" = "${var.name}-${each.value.suffix}" },
+    var.tags,
+    each.value.tags,
+  )
+}
+
+resource "aws_network_acl_rule" "this" {
+  for_each = local.network_acl_rules
+
+  network_acl_id = aws_network_acl.this[each.value.tier].id
+
+  egress          = each.value.egress
+  rule_number     = each.value.rule_number
+  rule_action     = each.value.rule_action
+  protocol        = each.value.protocol
+  from_port       = each.value.from_port
+  to_port         = each.value.to_port
+  icmp_type       = try(each.value.icmp_type, null)
+  icmp_code       = try(each.value.icmp_code, null)
+  cidr_block      = each.value.cidr_block
+  ipv6_cidr_block = each.value.ipv6_cidr_block
+}
+
+# The database NACL was the only one before per-tier NACLs.
+moved {
+  from = aws_network_acl.database[0]
+  to   = aws_network_acl.this["database"]
+}
+
+################################################################################
+# VPC endpoints
+################################################################################
+
+locals {
+  route_table_ids = concat(
+    aws_route_table.public[*].id,
+    aws_route_table.private[*].id,
+    aws_route_table.database[*].id,
+    aws_route_table.intra[*].id,
+    aws_route_table.elasticache[*].id,
+    aws_route_table.redshift[*].id,
+  )
+
+  gateway_endpoints   = local.create_vpc ? var.gateway_endpoints : toset([])
+  interface_endpoints = local.create_vpc ? var.interface_endpoints : toset([])
+
+  # Private subnets are spread across azs in order, so the first length(azs) are in distinct AZs.
+  interface_endpoint_subnet_ids = var.interface_endpoint_subnet_ids != null ? var.interface_endpoint_subnet_ids : slice(aws_subnet.private[*].id, 0, min(length(local.azs), length(aws_subnet.private)))
+}
+
+data "aws_vpc_endpoint_service" "gateway" {
+  for_each = local.gateway_endpoints
+
+  service      = each.key
+  service_type = "Gateway"
+}
+
+resource "aws_vpc_endpoint" "gateway" {
+  for_each = local.gateway_endpoints
+
+  vpc_id            = local.vpc_id
+  service_name      = data.aws_vpc_endpoint_service.gateway[each.key].service_name
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = local.route_table_ids
+
+  tags = merge(
+    { "Name" = "${var.name}-${each.key}" },
+    var.tags,
+    var.vpc_endpoint_tags,
+  )
+}
+
+data "aws_vpc_endpoint_service" "interface" {
+  for_each = local.interface_endpoints
+
+  service      = each.key
+  service_type = "Interface"
+}
+
+resource "aws_security_group" "vpc_endpoints" {
+  count = length(local.interface_endpoints) > 0 ? 1 : 0
+
+  name_prefix = "${var.name}-vpc-endpoints-"
+  description = "HTTPS from the VPC to the interface endpoints"
+  vpc_id      = local.vpc_id
+
+  tags = merge(
+    { "Name" = "${var.name}-vpc-endpoints" },
+    var.tags,
+    var.vpc_endpoint_tags,
+  )
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "vpc_endpoints" {
+  count = length(local.interface_endpoints) > 0 ? length(local.vpc_ipv4_cidrs) : 0
+
+  security_group_id = aws_security_group.vpc_endpoints[0].id
+  description       = "HTTPS from the VPC"
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  cidr_ipv4         = local.vpc_ipv4_cidrs[count.index]
+}
+
+resource "aws_vpc_security_group_ingress_rule" "vpc_endpoints_ipv6" {
+  count = length(local.interface_endpoints) > 0 && var.enable_ipv6 ? 1 : 0
+
+  security_group_id = aws_security_group.vpc_endpoints[0].id
+  description       = "HTTPS from the VPC over IPv6"
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  cidr_ipv6         = aws_vpc.this[0].ipv6_cidr_block
+}
+
+resource "aws_vpc_endpoint" "interface" {
+  for_each = local.interface_endpoints
+
+  vpc_id              = local.vpc_id
+  service_name        = data.aws_vpc_endpoint_service.interface[each.key].service_name
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = local.interface_endpoint_subnet_ids
+  security_group_ids  = concat(aws_security_group.vpc_endpoints[*].id, var.interface_endpoint_security_group_ids)
+  private_dns_enabled = var.interface_endpoint_private_dns_enabled
+
+  tags = merge(
+    { "Name" = "${var.name}-${each.key}" },
+    var.tags,
+    var.vpc_endpoint_tags,
+  )
+
+  lifecycle {
+    precondition {
+      condition     = length(local.interface_endpoint_subnet_ids) > 0
+      error_message = "Interface endpoints need subnets. Create private subnets or set interface_endpoint_subnet_ids."
+    }
+
+    precondition {
+      condition     = !var.interface_endpoint_private_dns_enabled || (var.enable_dns_support && var.enable_dns_hostnames)
+      error_message = "Private DNS on interface endpoints needs enable_dns_support and enable_dns_hostnames. Turn those on, or set interface_endpoint_private_dns_enabled = false."
+    }
+  }
+}
+
+################################################################################
+# DHCP options
+################################################################################
+
+resource "aws_vpc_dhcp_options" "this" {
+  count = local.create_vpc && var.enable_dhcp_options ? 1 : 0
+
+  domain_name                       = var.dhcp_options_domain_name
+  domain_name_servers               = var.dhcp_options_domain_name_servers
+  ntp_servers                       = var.dhcp_options_ntp_servers
+  netbios_name_servers              = var.dhcp_options_netbios_name_servers
+  netbios_node_type                 = var.dhcp_options_netbios_node_type
+  ipv6_address_preferred_lease_time = var.dhcp_options_ipv6_address_preferred_lease_time
+
+  tags = merge(
+    { "Name" = var.name },
+    var.tags,
+    var.dhcp_options_tags,
+  )
+}
+
+resource "aws_vpc_dhcp_options_association" "this" {
+  count = local.create_vpc && var.enable_dhcp_options ? 1 : 0
+
+  vpc_id          = local.vpc_id
+  dhcp_options_id = aws_vpc_dhcp_options.this[0].id
+}
+
+################################################################################
+# Block Public Access exclusions
+# Exclusions only. The account-level Block Public Access mode affects every VPC in the
+# account and region, so it belongs in the account baseline, not here.
+################################################################################
+
+resource "aws_vpc_block_public_access_exclusion" "vpc" {
+  count = local.create_vpc && var.vpc_block_public_access_exclusion_mode != null ? 1 : 0
+
+  vpc_id                          = local.vpc_id
+  internet_gateway_exclusion_mode = var.vpc_block_public_access_exclusion_mode
+
+  tags = merge(
+    { "Name" = var.name },
+    var.tags,
+  )
+}
+
+resource "aws_vpc_block_public_access_exclusion" "public_subnets" {
+  count = local.create_vpc && var.public_subnets_block_public_access_exclusion_mode != null ? length(aws_subnet.public) : 0
+
+  subnet_id                       = aws_subnet.public[count.index].id
+  internet_gateway_exclusion_mode = var.public_subnets_block_public_access_exclusion_mode
+
+  tags = merge(
+    { "Name" = aws_subnet.public[count.index].tags["Name"] },
+    var.tags,
+  )
 }
