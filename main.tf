@@ -88,8 +88,8 @@ resource "aws_vpc" "this" {
     }
 
     precondition {
-      condition     = !(var.enable_ipv6 && var.private_subnet_enable_dns64) || var.enable_nat_gateway
-      error_message = "DNS64 hands IPv6-only workloads synthesized addresses that only work through NAT64. Set enable_nat_gateway = true, or turn private_subnet_enable_dns64 off."
+      condition     = !var.private_subnet_enable_dns64 || (var.enable_ipv6 && length(var.private_subnet_ipv6_prefixes) > 0 && var.enable_nat_gateway)
+      error_message = "private_subnet_enable_dns64 needs IPv6 private subnets (enable_ipv6 and private_subnet_ipv6_prefixes) and enable_nat_gateway = true, because the addresses DNS64 hands out only work through NAT64. Set those, or turn private_subnet_enable_dns64 off."
     }
   }
 }
@@ -881,12 +881,13 @@ locals {
   vpc_ipv4_cidrs = local.create_vpc ? concat([var.use_ipam_pool ? aws_vpc.this[0].cidr_block : var.cidr], var.secondary_cidr_blocks) : []
   nacl_ipv6      = local.create_vpc && var.enable_ipv6
 
-  # Building blocks for the default tier rules. NACLs are stateless, so ephemeral ports
-  # must be open inbound for replies to anything the subnets reach out to. TCP skips 3389
-  # so RDP is never open to the internet.
+  # Building blocks for the default tier rules. The VPC IPv4 rules take 100-149, one per
+  # CIDR (a VPC can have up to 50), so the VPC IPv6 rule sits at 150. NACLs are stateless,
+  # so ephemeral ports must be open inbound for replies to anything the subnets reach out
+  # to. TCP skips 3389 so RDP is never open to the internet.
   nacl_rules_from_vpc = concat(
     [for i, cidr in local.vpc_ipv4_cidrs : { rule_number = 100 + i, rule_action = "allow", protocol = "-1", from_port = 0, to_port = 0, cidr_block = cidr, ipv6_cidr_block = null }],
-    local.nacl_ipv6 ? [{ rule_number = 110, rule_action = "allow", protocol = "-1", from_port = 0, to_port = 0, cidr_block = null, ipv6_cidr_block = aws_vpc.this[0].ipv6_cidr_block }] : [],
+    local.nacl_ipv6 ? [{ rule_number = 150, rule_action = "allow", protocol = "-1", from_port = 0, to_port = 0, cidr_block = null, ipv6_cidr_block = aws_vpc.this[0].ipv6_cidr_block }] : [],
   )
   nacl_rules_ephemeral = concat(
     [
@@ -1113,7 +1114,7 @@ resource "aws_vpc_endpoint" "interface" {
   vpc_endpoint_type   = "Interface"
   subnet_ids          = local.interface_endpoint_subnet_ids
   security_group_ids  = concat(aws_security_group.vpc_endpoints[*].id, var.interface_endpoint_security_group_ids)
-  private_dns_enabled = true
+  private_dns_enabled = var.interface_endpoint_private_dns_enabled
 
   tags = merge(
     { "Name" = "${var.name}-${each.key}" },

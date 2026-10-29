@@ -175,7 +175,7 @@ output "azs" {
 
 output "vpc_ipv6_cidr_block" {
   description = "VPC IPv6 CIDR block, or null when not created or IPv6 is off"
-  value       = try(aws_vpc.this[0].ipv6_cidr_block, null)
+  value       = local.create_vpc && var.enable_ipv6 ? aws_vpc.this[0].ipv6_cidr_block : null
 }
 
 output "igw_id" {

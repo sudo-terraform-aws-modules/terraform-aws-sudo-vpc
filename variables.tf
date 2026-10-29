@@ -729,6 +729,7 @@ variable "intra_subnets" {
   description = "Intra subnets: no route to or from the internet. Created only from this list, never carved."
   type        = list(string)
   default     = []
+  nullable    = false
 }
 
 variable "intra_subnet_assign_ipv6_address_on_creation" {
@@ -741,12 +742,14 @@ variable "intra_subnet_ipv6_prefixes" {
   description = "IPv6 prefix numbers for the intra subnets, carved as /64s from the VPC IPv6 range. One per subnet, in order."
   type        = list(string)
   default     = []
+  nullable    = false
 }
 
 variable "intra_subnet_names" {
   description = "Names for the intra subnets, in order. Defaults to <name>-<intra_subnet_suffix>-<az>."
   type        = list(string)
   default     = []
+  nullable    = false
 }
 
 variable "intra_subnet_suffix" {
@@ -759,12 +762,14 @@ variable "intra_subnet_tags" {
   description = "Additional tags for the intra subnets"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 variable "intra_route_table_tags" {
   description = "Additional tags for the intra route table"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 variable "propagate_intra_route_tables_vgw" {
@@ -781,6 +786,7 @@ variable "elasticache_subnets" {
   description = "ElastiCache subnets. Created only from this list, never carved."
   type        = list(string)
   default     = []
+  nullable    = false
 }
 
 variable "elasticache_subnet_assign_ipv6_address_on_creation" {
@@ -793,12 +799,14 @@ variable "elasticache_subnet_ipv6_prefixes" {
   description = "IPv6 prefix numbers for the ElastiCache subnets, carved as /64s from the VPC IPv6 range. One per subnet, in order."
   type        = list(string)
   default     = []
+  nullable    = false
 }
 
 variable "elasticache_subnet_names" {
   description = "Names for the ElastiCache subnets, in order. Defaults to <name>-<elasticache_subnet_suffix>-<az>."
   type        = list(string)
   default     = []
+  nullable    = false
 }
 
 variable "elasticache_subnet_suffix" {
@@ -811,6 +819,7 @@ variable "elasticache_subnet_tags" {
   description = "Additional tags for the ElastiCache subnets"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 variable "create_elasticache_subnet_group" {
@@ -829,6 +838,7 @@ variable "elasticache_subnet_group_tags" {
   description = "Additional tags for the ElastiCache subnet group"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 variable "create_elasticache_subnet_route_table" {
@@ -841,6 +851,7 @@ variable "elasticache_route_table_tags" {
   description = "Additional tags for the ElastiCache route table"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 ################################################################################
@@ -851,6 +862,7 @@ variable "redshift_subnets" {
   description = "Redshift subnets. Created only from this list, never carved."
   type        = list(string)
   default     = []
+  nullable    = false
 }
 
 variable "redshift_subnet_assign_ipv6_address_on_creation" {
@@ -863,12 +875,14 @@ variable "redshift_subnet_ipv6_prefixes" {
   description = "IPv6 prefix numbers for the Redshift subnets, carved as /64s from the VPC IPv6 range. One per subnet, in order."
   type        = list(string)
   default     = []
+  nullable    = false
 }
 
 variable "redshift_subnet_names" {
   description = "Names for the Redshift subnets, in order. Defaults to <name>-<redshift_subnet_suffix>-<az>."
   type        = list(string)
   default     = []
+  nullable    = false
 }
 
 variable "redshift_subnet_suffix" {
@@ -881,6 +895,7 @@ variable "redshift_subnet_tags" {
   description = "Additional tags for the Redshift subnets"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 variable "create_redshift_subnet_group" {
@@ -899,6 +914,7 @@ variable "redshift_subnet_group_tags" {
   description = "Additional tags for the Redshift subnet group"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 variable "create_redshift_subnet_route_table" {
@@ -911,6 +927,7 @@ variable "redshift_route_table_tags" {
   description = "Additional tags for the Redshift route table"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 ################################################################################
@@ -959,6 +976,7 @@ variable "public_acl_tags" {
   description = "Additional tags for the dedicated public network ACL"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 variable "private_dedicated_network_acl" {
@@ -1003,6 +1021,7 @@ variable "private_acl_tags" {
   description = "Additional tags for the dedicated private network ACL"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 variable "database_dedicated_network_acl" {
@@ -1047,6 +1066,7 @@ variable "database_acl_tags" {
   description = "Additional tags for the dedicated database network ACL"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 variable "intra_dedicated_network_acl" {
@@ -1091,6 +1111,7 @@ variable "intra_acl_tags" {
   description = "Additional tags for the dedicated intra network ACL"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 variable "elasticache_dedicated_network_acl" {
@@ -1135,6 +1156,7 @@ variable "elasticache_acl_tags" {
   description = "Additional tags for the dedicated ElastiCache network ACL"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 variable "redshift_dedicated_network_acl" {
@@ -1179,6 +1201,7 @@ variable "redshift_acl_tags" {
   description = "Additional tags for the dedicated Redshift network ACL"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 ################################################################################
@@ -1214,12 +1237,21 @@ variable "interface_endpoint_security_group_ids" {
   description = "Extra security groups for the interface endpoints, on top of the one the module creates that allows HTTPS from the VPC"
   type        = list(string)
   default     = []
+  nullable    = false
+}
+
+variable "interface_endpoint_private_dns_enabled" {
+  description = "Turn on private DNS for the interface endpoints, so the public service names resolve to them inside the VPC. Turn it off when you manage those names in your own Route 53 private zones."
+  type        = bool
+  default     = true
+  nullable    = false
 }
 
 variable "vpc_endpoint_tags" {
   description = "Additional tags for the VPC endpoints and the endpoint security group"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 ################################################################################
@@ -1242,24 +1274,32 @@ variable "dhcp_options_domain_name_servers" {
   description = "DNS servers for the DHCP options set"
   type        = list(string)
   default     = ["AmazonProvidedDNS"]
+  nullable    = false
 }
 
 variable "dhcp_options_ntp_servers" {
   description = "NTP servers for the DHCP options set"
   type        = list(string)
   default     = []
+  nullable    = false
 }
 
 variable "dhcp_options_netbios_name_servers" {
   description = "NetBIOS name servers for the DHCP options set"
   type        = list(string)
   default     = []
+  nullable    = false
 }
 
 variable "dhcp_options_netbios_node_type" {
   description = "NetBIOS node type for the DHCP options set. AWS recommends 2."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.dhcp_options_netbios_node_type == null || contains(["1", "2", "4", "8"], coalesce(var.dhcp_options_netbios_node_type, "x"))
+    error_message = "dhcp_options_netbios_node_type must be 1, 2, 4 or 8."
+  }
 }
 
 variable "dhcp_options_ipv6_address_preferred_lease_time" {
@@ -1272,6 +1312,7 @@ variable "dhcp_options_tags" {
   description = "Additional tags for the DHCP options set"
   type        = map(string)
   default     = {}
+  nullable    = false
 }
 
 ################################################################################

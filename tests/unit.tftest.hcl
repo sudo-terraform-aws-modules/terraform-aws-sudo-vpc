@@ -1072,7 +1072,7 @@ run "network_acls_with_ipv6" {
   }
 
   assert {
-    condition     = aws_network_acl_rule.this["private-ingress-110"].ipv6_cidr_block == "2600:1f18:abcd:1200::/56" && aws_network_acl_rule.this["private-ingress-220"].ipv6_cidr_block == "::/0"
+    condition     = aws_network_acl_rule.this["private-ingress-150"].ipv6_cidr_block == "2600:1f18:abcd:1200::/56" && aws_network_acl_rule.this["private-ingress-220"].ipv6_cidr_block == "::/0"
     error_message = "With IPv6 on, the private NACL must allow VPC IPv6 traffic and IPv6 replies."
   }
 
@@ -1287,4 +1287,105 @@ run "rejects_dns64_without_nat" {
   }
 
   expect_failures = [aws_vpc.this]
+}
+
+# PR #27 review fixes.
+
+run "network_acl_rule_numbers_with_many_cidrs" {
+  command = apply
+
+  variables {
+    secondary_cidr_blocks         = [for i in range(1, 11) : "10.${i}.0.0/16"]
+    enable_ipv6                   = true
+    private_dedicated_network_acl = true
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.this["private-ingress-110"].cidr_block == "10.10.0.0/16" && aws_network_acl_rule.this["private-ingress-150"].ipv6_cidr_block == "2600:1f18:abcd:1200::/56"
+    error_message = "With 11 IPv4 CIDRs the VPC IPv4 rules must end at 110 and the IPv6 rule must stay at 150."
+  }
+}
+
+run "rejects_dns64_without_ipv6" {
+  command = plan
+
+  variables {
+    enable_nat_gateway          = true
+    private_subnet_enable_dns64 = true
+  }
+
+  expect_failures = [aws_vpc.this]
+}
+
+run "rejects_dns64_without_private_ipv6_prefixes" {
+  command = plan
+
+  variables {
+    enable_ipv6                 = true
+    enable_nat_gateway          = true
+    private_subnet_enable_dns64 = true
+  }
+
+  expect_failures = [aws_vpc.this]
+}
+
+run "vpc_ipv6_cidr_block_null_without_ipv6" {
+  command = apply
+
+  assert {
+    condition     = output.vpc_ipv6_cidr_block == null
+    error_message = "vpc_ipv6_cidr_block must be null when IPv6 is off, not an empty string."
+  }
+}
+
+run "vpc_ipv6_cidr_block_with_ipv6" {
+  command = apply
+
+  variables {
+    enable_ipv6 = true
+  }
+
+  assert {
+    condition     = output.vpc_ipv6_cidr_block == "2600:1f18:abcd:1200::/56"
+    error_message = "vpc_ipv6_cidr_block must return the VPC IPv6 block when IPv6 is on."
+  }
+}
+
+run "rejects_invalid_netbios_node_type" {
+  command = plan
+
+  variables {
+    enable_dhcp_options            = true
+    dhcp_options_netbios_node_type = "3"
+  }
+
+  expect_failures = [var.dhcp_options_netbios_node_type]
+}
+
+run "interface_endpoints_without_private_dns" {
+  command = plan
+
+  variables {
+    interface_endpoints                    = ["sts"]
+    interface_endpoint_private_dns_enabled = false
+  }
+
+  assert {
+    condition     = !aws_vpc_endpoint.interface["sts"].private_dns_enabled
+    error_message = "interface_endpoint_private_dns_enabled = false must turn private DNS off."
+  }
+}
+
+# With nullable = false, null falls back to the default instead of breaking length().
+run "null_intra_subnets_uses_default" {
+  command = plan
+
+  variables {
+    intra_subnets = null
+  }
+
+  assert {
+    condition     = length(aws_subnet.intra) == 0
+    error_message = "intra_subnets = null must behave like the empty default."
+  }
 }
