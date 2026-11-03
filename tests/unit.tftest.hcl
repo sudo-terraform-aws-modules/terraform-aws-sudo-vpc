@@ -369,7 +369,7 @@ run "nat_gateway_per_subnet_with_carved_subnets" {
   }
 }
 
-run "vgw_propagation_single_nat_given_subnets" {
+run "vgw_propagation_single_nat_keeps_v005_addresses" {
   command = plan
 
   variables {
@@ -381,9 +381,16 @@ run "vgw_propagation_single_nat_given_subnets" {
     propagate_private_route_tables_vgw = true
   }
 
+  # v0.0.5 made one propagation per private subnet. Keeping that count means upgrading never
+  # destroys one, which would turn propagation off on the route table they all share.
   assert {
-    condition     = length(aws_route_table.private) == 1 && length(aws_vpn_gateway_route_propagation.private) == 1
-    error_message = "With one private route table there must be exactly one private VGW propagation, not one per subnet."
+    condition     = length(aws_route_table.private) == 1 && length(aws_vpn_gateway_route_propagation.private) == 3
+    error_message = "With a single NAT gateway there must still be one private VGW propagation per private subnet, as in v0.0.5."
+  }
+
+  assert {
+    condition     = alltrue([for p in aws_vpn_gateway_route_propagation.private : p.route_table_id == aws_route_table.private[0].id])
+    error_message = "With one private route table every private propagation must point at it."
   }
 }
 
@@ -677,6 +684,11 @@ run "flow_log_trust_policy_conditions" {
 run "manages_default_route_table_and_nacl" {
   command = plan
 
+  variables {
+    manage_default_route_table = true
+    manage_default_network_acl = true
+  }
+
   assert {
     condition     = length(aws_default_route_table.this) == 1 && length(aws_default_route_table.this[0].route) == 0
     error_message = "The default route table must be managed with no routes, so subnets left on it have no path out."
@@ -703,17 +715,13 @@ run "manages_default_route_table_and_nacl" {
   }
 }
 
-run "default_route_table_and_nacl_can_be_left_alone" {
+# Off by default like v0.0.5, so an upgrade does not delete routes or rules added outside Terraform.
+run "default_route_table_and_nacl_left_alone_by_default" {
   command = plan
-
-  variables {
-    manage_default_route_table = false
-    manage_default_network_acl = false
-  }
 
   assert {
     condition     = length(aws_default_route_table.this) == 0 && length(aws_default_network_acl.this) == 0
-    error_message = "manage_default_route_table and manage_default_network_acl = false must leave both alone."
+    error_message = "The default route table and NACL must only be adopted when asked for."
   }
 }
 
@@ -721,7 +729,8 @@ run "default_nacl_custom_rules" {
   command = plan
 
   variables {
-    cidr = "10.0.0.0/16"
+    cidr                       = "10.0.0.0/16"
+    manage_default_network_acl = true
     default_network_acl_ingress = [
       { rule_no = 100, action = "allow", protocol = "-1", cidr_block = "10.0.0.0/16" },
     ]
@@ -738,7 +747,9 @@ run "no_default_resources_without_vpc" {
   command = plan
 
   variables {
-    create_vpc = false
+    create_vpc                 = false
+    manage_default_route_table = true
+    manage_default_network_acl = true
   }
 
   assert {
@@ -788,7 +799,8 @@ run "public_subnets_assign_no_public_ip_by_default" {
   }
 }
 
-run "carves_one_subnet_per_given_az" {
+# Carving keeps the v0.0.5 layout so an upgrade never drops a subnet.
+run "carves_three_subnets_with_two_azs" {
   command = plan
 
   variables {
@@ -796,8 +808,13 @@ run "carves_one_subnet_per_given_az" {
   }
 
   assert {
-    condition     = length(aws_subnet.public) == 2 && aws_subnet.public[*].availability_zone == ["eu-west-1a", "eu-west-1b"]
-    error_message = "With two AZs given, the module must carve two subnets per tier, one in each."
+    condition     = length(aws_subnet.public) == 3 && aws_subnet.public[*].availability_zone == ["eu-west-1a", "eu-west-1b", "eu-west-1a"]
+    error_message = "With two AZs given, the module must still carve three subnets per tier, wrapping around azs."
+  }
+
+  assert {
+    condition     = aws_subnet.database[*].cidr_block == ["10.0.32.0/24", "10.0.33.0/24", "10.0.34.0/24"]
+    error_message = "Carved subnet CIDRs must match v0.0.5."
   }
 }
 
@@ -831,7 +848,7 @@ run "carves_only_in_given_azs" {
   }
 
   assert {
-    condition     = length(aws_subnet.private) == 2 && aws_subnet.private[*].availability_zone_id == ["euw1-az2", "euw1-az3"]
+    condition     = aws_subnet.private[*].availability_zone_id == ["euw1-az2", "euw1-az3", "euw1-az2"]
     error_message = "Carving must use exactly the AZs given, by name or by ID."
   }
 }

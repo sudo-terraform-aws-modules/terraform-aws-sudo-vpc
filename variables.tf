@@ -563,9 +563,9 @@ variable "default_vpc_tags" {
 }
 
 variable "manage_default_route_table" {
-  description = "(optional) Adopt the VPC's default route table and remove every route except the local one, so subnets left on it have no path out of the VPC. Default: true"
+  description = "(optional) Adopt the VPC's default route table and remove every route except the local one, so subnets left on it have no path out of the VPC. Routes added outside Terraform are deleted. Default: false"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "default_route_table_name" {
@@ -581,9 +581,9 @@ variable "default_route_table_tags" {
 }
 
 variable "manage_default_network_acl" {
-  description = "(optional) Adopt the VPC's default network ACL and set its rules from default_network_acl_ingress and default_network_acl_egress. Every subnet without a dedicated NACL uses it. Default: true"
+  description = "(optional) Adopt the VPC's default network ACL and set its rules from default_network_acl_ingress and default_network_acl_egress. Every subnet without a dedicated NACL uses it. Rules added outside Terraform are deleted. Default: false"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "default_network_acl_name" {

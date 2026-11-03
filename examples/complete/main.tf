@@ -51,6 +51,11 @@ module "vpc" {
   default_security_group_ingress = []
   default_security_group_egress  = []
 
+  # Adopt the default route table with only its local route, so a subnet left
+  # on it cannot reach anything outside the VPC.
+  manage_default_route_table = true
+  manage_default_network_acl = true
+
   # Site-to-site VPN building blocks. The VGW propagates its routes into the
   # private route tables.
   enable_vpn_gateway                 = true

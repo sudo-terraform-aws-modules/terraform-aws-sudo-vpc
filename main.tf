@@ -19,10 +19,10 @@ locals {
 
   # Carving splits cidr into four blocks and each block into three subnets, 8 bits in all.
   # A /20 gives /28 subnets, the smallest AWS allows; smaller VPCs are rejected below.
-  # One subnet per tier per AZ in var.azs, up to three.
-  carve_az_count = min(3, length(var.azs))
-  carve_prefix   = try(tonumber(split("/", local.cidr)[1]), null)
-  subnets        = try([for cidr_block in cidrsubnets(local.cidr, 4, 4, 4, 4) : slice(cidrsubnets(cidr_block, 4, 4, 4), 0, local.carve_az_count)], [[], [], []])
+  # Always three per tier, as in v0.0.5, so upgrading never drops a subnet. With fewer than
+  # three AZs the subnets wrap around var.azs.
+  carve_prefix = try(tonumber(split("/", local.cidr)[1]), null)
+  subnets      = try([for cidr_block in cidrsubnets(local.cidr, 4, 4, 4, 4) : cidrsubnets(cidr_block, 4, 4, 4)], [[], [], []])
 
   # Given subnet lists are always used; without them the module carves subnets from cidr.
   use_given_subnets = local.max_subnet_length > 0
@@ -511,12 +511,14 @@ resource "aws_vpn_gateway_route_propagation" "public" {
   vpn_gateway_id = local.propagation_vpn_gateway_id
 }
 
-# One propagation per private route table. There is one private route table per NAT gateway,
-# not per private subnet, so counting subnets created duplicates.
+# One propagation per private subnet, as in v0.0.5, and at least one per private route table so
+# carved subnets get theirs too. With a single NAT gateway several of them point at the same
+# route table. That is redundant but harmless, and counting route tables instead would destroy
+# the extras on upgrade, which turns propagation off for the route table they share.
 resource "aws_vpn_gateway_route_propagation" "private" {
-  count = local.propagate_vgw && var.propagate_private_route_tables_vgw ? local.private_route_table_count : 0
+  count = local.propagate_vgw && var.propagate_private_route_tables_vgw && local.private_route_table_count > 0 ? max(local.private_route_table_count, length(var.private_subnets)) : 0
 
-  route_table_id = aws_route_table.private[count.index].id
+  route_table_id = element(aws_route_table.private[*].id, count.index)
   vpn_gateway_id = local.propagation_vpn_gateway_id
 }
 
